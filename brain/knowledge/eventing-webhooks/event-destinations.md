@@ -7,7 +7,7 @@ icon: 📡
 Streams platform/project activity events to webhook URLs in real time. Internal Activepieces flow webhooks are valid targets, so operators can route events into a flow and fan out to Slack/Gmail/Teams/HTTP without leaving the platform. EE/Cloud only. The server checks no plan flag; only the web hides the page behind `plan.eventStreamingEnabled`. Lives under the **Observability** sidebar group.
 
 ### Entities & services
-- **EventDestination**: one URL receiving a chosen subset of the 40 `ApplicationEventName` events, at PLATFORM or PROJECT scope.
+- **EventDestination**: one URL receiving a chosen subset of the 41 `ApplicationEventName` events, at PLATFORM or PROJECT scope.
 - **Scope**: PLATFORM (all platform events) or PROJECT (currently only `FLOW_RUN_FINISHED`).
 - Delivery via BullMQ queue (`WorkerJobType.EVENT_DESTINATION`).
 

@@ -67,6 +67,12 @@ export const useEventLabels = (): EventLabelsMap => {
     [ApplicationEventName.SIGNING_KEY_CREATED]: {
       label: t('Signing key created'),
     },
+    [ApplicationEventName.AUDIT_LOG_RETENTION_UPDATED]: {
+      label: t('Audit log retention updated'),
+      description: t(
+        'Fires when a platform admin changes how long audit events are kept.',
+      ),
+    },
     [ApplicationEventName.PROJECT_ROLE_CREATED]: {
       label: t('Project role created'),
     },
