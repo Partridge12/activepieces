@@ -212,7 +212,7 @@ function formatFlowStructure(
             if (fullStep && fullStep.type === FlowTriggerType.PIECE) {
                 triggerDetail = ` (piece: ${fullStep.settings.pieceName}, trigger: ${fullStep.settings.triggerName ?? 'not set'})`
             }
-            lines.push(`- [TRIGGER] ${step.name} | ${step.type} | "${step.displayName}"${triggerDetail} | parent:, | ${step.configStatus}${sampleLabel}${skipLabel}${canvasLabel}`)
+            lines.push(`- [TRIGGER] ${step.name} | ${step.type} | "${step.displayName}"${triggerDetail} | parent: none | ${step.configStatus}${sampleLabel}${skipLabel}${canvasLabel}`)
             if (fullStep) {
                 lines.push(...formatStepSettings(fullStep))
             }
