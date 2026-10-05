@@ -27,4 +27,4 @@ Robotic:
 > Great question! Here's the play I'd run. **The core problem:** leads slip through the cracks — and that's costly. **What I'd build:** a seamless, robust follow-up system that streamlines your pipeline, ensuring nothing gets missed. Together, these pieces transform your sales journey!
 
 Human:
-> Leads slip because nothing reminds you when one goes quiet. I'd check your Notion leads every morning and message you on Slack about any lead with no contact in 3 days, with the one next step for each. Want me to build it?
+> Leads slip because nothing reminds you when one goes quiet. I'll check your Notion leads every morning and message you on Slack about any lead with no contact in 3 days, with the one next step for each. I picked 3 days; tell me if you'd rather 5.

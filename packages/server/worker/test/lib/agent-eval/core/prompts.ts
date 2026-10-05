@@ -5,7 +5,7 @@ import { tryCatchSync } from '@activepieces/core-utils';
 import { repoRoot } from './repo-root'
 
 const PROMPTS_DIR = path.join(repoRoot, 'packages/server/api/src/assets/prompts')
-const GUIDE_TOPICS = ['build_flow', 'one_time_task', 'error_handling', 'http_fallback']
+const GUIDE_TOPICS = ['build_flow', 'one_time_task', 'error_handling', 'http_fallback', 'writing']
 
 const EVAL_FRONTEND_URL = 'https://eval.activepieces.test'
 const EVAL_PROJECT_LIST = '- Eval Project (id: eval-project)'
