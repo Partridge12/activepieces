@@ -1040,6 +1040,9 @@
       "@activepieces/piece-postgres": [
         "packages/pieces/community/postgres/src/index.ts"
       ],
+      "@activepieces/piece-posteverywhere": [
+        "packages/pieces/community/posteverywhere/src/index.ts"
+      ],
       "@activepieces/piece-posthog": [
         "packages/pieces/community/posthog/src/index.ts"
       ],

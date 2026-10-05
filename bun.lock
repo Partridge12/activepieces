@@ -7181,6 +7181,18 @@
         "tslib": "2.6.2",
       },
     },
+    "packages/pieces/community/posteverywhere": {
+      "name": "@activepieces/piece-posteverywhere",
+      "version": "0.1.0",
+      "dependencies": {
+        "@activepieces/pieces-common": "workspace:*",
+        "@activepieces/pieces-framework": "workspace:*",
+      },
+      "devDependencies": {
+        "tslib": "2.6.2",
+        "vitest": "3.2.6",
+      },
+    },
     "packages/pieces/community/posthog": {
       "name": "@activepieces/piece-posthog",
       "version": "0.6.1",
@@ -12276,6 +12288,8 @@
     "@activepieces/piece-poper": ["@activepieces/piece-poper@workspace:packages/pieces/community/poper"],
 
     "@activepieces/piece-postgres": ["@activepieces/piece-postgres@workspace:packages/pieces/community/postgres"],
+
+    "@activepieces/piece-posteverywhere": ["@activepieces/piece-posteverywhere@workspace:packages/pieces/community/posteverywhere"],
 
     "@activepieces/piece-posthog": ["@activepieces/piece-posthog@workspace:packages/pieces/community/posthog"],
 
