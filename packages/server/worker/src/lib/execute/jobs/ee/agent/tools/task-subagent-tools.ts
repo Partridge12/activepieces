@@ -24,77 +24,106 @@ export function createTaskSubagentTools({ tools, model, provider, tier, modelId,
     if (isNil(taskPrompt)) {
         return {}
     }
-    const workerTools = Object.fromEntries(Object.entries(tools).filter(([name]) => !NOT_FOR_TASKS.includes(name)))
+    const deps: TaskDeps = {
+        workerTools: Object.fromEntries(Object.entries(tools).filter(([name]) => !NOT_FOR_TASKS.includes(name))),
+        model, provider, tier, modelId, taskPrompt, creditsLeftFor, beginTask, finishTask, eventEmitter, abortSignal, log,
+    }
+    const searchAvailable = Object.hasOwn(tools, WEB_SEARCH_TOOL)
     return {
         [TASK_TOOL_NAME]: tool({
-            description: 'Hand one self-contained goal to a focused sub-agent with its own fresh context and the same tools you have (read, search, build, update, execute; risky actions still ask the user for approval). Use it when it buys something: goals that can run in parallel (several calls in one step run at once), like the separate flows of a multi-flow solution or deep research on several subjects (one task per competitor, vendor or app, each doing several searches and reading pages, while you compare the briefs and do the final step); or noisy preparation with a short answer (going through many records or runs, investigating a failure). Build a single flow, make small edits and do quick one-search lookups yourself. It cannot ask the user anything: when it needs something only the user can give it finishes as blocked and says what. Pass taskId to continue a task you started earlier in this conversation (after a block, or for a follow-up on what it built).',
+            description: 'Hand one self-contained goal to a focused sub-agent with its own fresh context and the same tools you have (read, search, build, update, execute; risky actions still ask the user for approval). Use it when it buys something: goals that can run in parallel (several calls in one step run at once), like the separate flows of a multi-flow solution; or noisy preparation with a short answer (going through many records or runs, investigating a failure). Build a single flow and make small edits yourself. It cannot ask the user anything: when it needs something only the user can give it finishes as blocked and says what. Pass taskId to continue a task you started earlier in this conversation (after a block, or for a follow-up on what it built).',
             inputSchema: taskInput,
-            toModelOutput: ({ output }) => ({ type: 'text', value: modelView(output) }),
-            execute: async ({ title, brief, taskId }, { toolCallId }) => {
-                const { data: begun, error } = await tryCatch(() => beginTask({ title, ...(isNil(taskId) ? {} : { taskId }) }))
-                if (error || isNil(begun)) {
-                    return { status: 'failed', summary: `Could not start this task: ${error instanceof Error ? error.message : 'unknown error'}` }
-                }
-                const startedAt = new Date()
-                const report = (activity: SubagentActivity) => eventEmitter.emitSubagentProgress({ toolCallId, data: { ...activity, taskId: begun.taskId } })
-                report({ title, status: 'running', steps: [], startedAt: startedAt.toISOString() })
-                const finish: { result?: TaskResult } = {}
-                const priorMessages = begun.messages.filter(isModelMessage)
-                const messages: ModelMessage[] = [...priorMessages, { role: 'user', content: brief }]
-                const phaseState: { phase: AgentPhase } = { phase: 'build' }
-                const taskTools = {
-                    ...workerTools,
-                    ...createPhaseTools({ onPhaseChange: (phase) => {
-                        phaseState.phase = phase
-                    } }),
-                    ...finishTool(finish),
-                }
-                const turnParams: RunAgentTurnParams = {
-                    model,
-                    provider,
-                    systemPrompt: taskPrompt,
-                    messages,
-                    tools: taskTools,
-                    allToolNames: Object.keys(taskTools),
-                    tier,
-                    modelId,
-                    phaseState,
-                    abortSignal,
-                    log,
-                    creditsLeft: creditsLeftFor(toolCallId),
-                    stopWhen: [isLoopFinished(), hasToolCall(TASK_COMPLETION_TOOL_NAME)],
-                    sinks: {
-                        drainStream: async (result) => {
-                            await result.consumeStream()
-                        },
-                        onProgress: ({ uiParts }) => report(runningActivity({ title, uiParts, startedAt })),
-                    },
-                }
-                const workTurn = await workUntilSettled({ title, turnParams, finished: () => !isNil(finish.result) })
-                const turn = isNil(finish.result) && endedCleanly({ turn: workTurn, abortSignal })
-                    ? await continueTurn({ title, turnParams, previous: workTurn, request: REPORT_REQUEST, overrides: { tools: finishTool(finish), allToolNames: [TASK_COMPLETION_TOOL_NAME], stepCeiling: 1 } })
-                    : workTurn
-                const result = finish.result ?? fallbackResult(turn)
-                const activity = finalActivity({ title, turn, result, startedAt })
-                await tryCatch(() => finishTask({
-                    taskId: begun.taskId,
-                    status: STATUS_BY_RESULT[result.status],
-                    messages: [...messages, ...turn.accumulatedResponseMessages],
-                    summary: result.summary,
-                    artifacts: result.artifacts,
-                }))
-                report(activity)
-                return {
-                    taskId: begun.taskId,
-                    status: result.status,
-                    summary: result.summary,
-                    artifacts: result.artifacts,
-                    ...(isNil(result.needs) ? {} : { needs: result.needs }),
-                    activity,
-                    billedToolCalls: billedToolCalls(turn.uiParts),
-                }
-            },
+            toModelOutput: ({ output }) => ({ type: 'text', value: JSON.stringify(forModel(output)) }),
+            execute: async ({ title, brief, taskId }, { toolCallId }) => runTask({ deps, title, brief, taskId, progressId: toolCallId }),
         }),
+        ...(searchAvailable ? {
+            [RESEARCH_TOOL_NAME]: tool({
+                description: 'Research one or more subjects in depth on the live web. One sub-agent per subject runs in parallel: it searches, reads the actual pages and returns a short sourced brief, and the user watches the research live. Use it whenever the answer needs facts from real pages, such as comparing tools or vendors, pricing and plans, reviews and complaints, competitors, or API docs. Prefer it over several ap_web_search calls. Use ap_web_search only for one quick fact. Compare the briefs and do the final step yourself (the recommendation, the image, the build).',
+                inputSchema: researchInput,
+                toModelOutput: ({ output }) => ({ type: 'text', value: JSON.stringify(forModel(output)) }),
+                execute: async ({ question, subjects, context }, { toolCallId }) => {
+                    const tasks = await Promise.all(subjects.map((subject, index) => runTask({
+                        deps,
+                        title: subject,
+                        brief: [question, `Subject: ${subject}`, ...(isNil(context) ? [] : [context])].join('\n\n'),
+                        progressId: `${toolCallId}:${index}`,
+                    })))
+                    return { tasks, billedToolCalls: tasks.flatMap((task) => task.billedToolCalls ?? []) }
+                },
+            }),
+        } : {}),
+    }
+}
+
+async function runTask({ deps, title, brief, taskId, progressId }: {
+    deps: TaskDeps
+    title: string
+    brief: string
+    taskId?: string
+    progressId: string
+}): Promise<TaskRunOutput> {
+    const { workerTools, model, provider, tier, modelId, taskPrompt, creditsLeftFor, beginTask, finishTask, eventEmitter, abortSignal, log } = deps
+    const { data: begun, error } = await tryCatch(() => beginTask({ title, ...(isNil(taskId) ? {} : { taskId }) }))
+    if (error || isNil(begun)) {
+        return { status: 'failed', summary: `Could not start this task: ${error instanceof Error ? error.message : 'unknown error'}` }
+    }
+    const startedAt = new Date()
+    const report = (activity: SubagentActivity) => eventEmitter.emitSubagentProgress({ toolCallId: progressId, data: { ...activity, taskId: begun.taskId } })
+    report({ title, status: 'running', steps: [], startedAt: startedAt.toISOString() })
+    const finish: { result?: TaskResult } = {}
+    const priorMessages = begun.messages.filter(isModelMessage)
+    const messages: ModelMessage[] = [...priorMessages, { role: 'user', content: brief }]
+    const phaseState: { phase: AgentPhase } = { phase: 'build' }
+    const taskTools = {
+        ...workerTools,
+        ...createPhaseTools({ onPhaseChange: (phase) => {
+            phaseState.phase = phase
+        } }),
+        ...finishTool(finish),
+    }
+    const turnParams: RunAgentTurnParams = {
+        model,
+        provider,
+        systemPrompt: taskPrompt,
+        messages,
+        tools: taskTools,
+        allToolNames: Object.keys(taskTools),
+        tier,
+        modelId,
+        phaseState,
+        abortSignal,
+        log,
+        creditsLeft: creditsLeftFor(progressId),
+        stopWhen: [isLoopFinished(), hasToolCall(TASK_COMPLETION_TOOL_NAME)],
+        sinks: {
+            drainStream: async (result) => {
+                await result.consumeStream()
+            },
+            onProgress: ({ uiParts }) => report(runningActivity({ title, uiParts, startedAt })),
+        },
+    }
+    const workTurn = await workUntilSettled({ title, turnParams, finished: () => !isNil(finish.result) })
+    const turn = isNil(finish.result) && endedCleanly({ turn: workTurn, abortSignal })
+        ? await continueTurn({ title, turnParams, previous: workTurn, request: REPORT_REQUEST, overrides: { tools: finishTool(finish), allToolNames: [TASK_COMPLETION_TOOL_NAME], stepCeiling: 1 } })
+        : workTurn
+    const result = finish.result ?? fallbackResult(turn)
+    const activity = finalActivity({ title, turn, result, startedAt })
+    await tryCatch(() => finishTask({
+        taskId: begun.taskId,
+        status: STATUS_BY_RESULT[result.status],
+        messages: [...messages, ...turn.accumulatedResponseMessages],
+        summary: result.summary,
+        artifacts: result.artifacts,
+    }))
+    report(activity)
+    return {
+        taskId: begun.taskId,
+        status: result.status,
+        summary: result.summary,
+        artifacts: result.artifacts,
+        ...(isNil(result.needs) ? {} : { needs: result.needs }),
+        activity,
+        billedToolCalls: billedToolCalls(turn.uiParts),
     }
 }
 
@@ -254,9 +283,14 @@ function parseJson(text: string): unknown {
     return data
 }
 
-function modelView(output: unknown): string {
-    const forModel = isObject(output) ? Object.fromEntries(Object.entries(output).filter(([key]) => !CARD_ONLY_FIELDS.includes(key))) : output
-    return JSON.stringify(forModel)
+function forModel(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(forModel)
+    }
+    if (!isObject(value)) {
+        return value
+    }
+    return Object.fromEntries(Object.entries(value).filter(([key]) => !CARD_ONLY_FIELDS.includes(key)).map(([key, inner]) => [key, forModel(inner)]))
 }
 
 function billedToolCalls(parts: PersistedAgentPart[]): { toolName: string, output: unknown }[] {
@@ -322,6 +356,12 @@ const taskInput = z.object({
     taskId: z.string().optional().describe('Continue a task from earlier in this conversation instead of starting a new one'),
 })
 
+const researchInput = z.object({
+    question: z.string().min(1).describe('What to find out, with the details that matter (team size, budget, region, what to compare)'),
+    subjects: z.array(z.string().min(1)).min(1).describe('One entry per thing to research, e.g. ["Asana", "ClickUp", "Monday.com"]. Each gets its own sub-agent.'),
+    context: z.string().optional().describe('Anything else the researchers should know'),
+})
+
 const taskResult = z.object({
     status: z.enum(['done', 'blocked', 'failed']),
     summary: z.string().describe('A few plain sentences: what you did and what the main assistant should tell the user'),
@@ -336,6 +376,7 @@ const STATUS_BY_RESULT: Record<TaskResult['status'], FinishAgentTaskRequest['sta
 }
 
 const TASK_TOOL_NAME = 'ap_run_task'
+const RESEARCH_TOOL_NAME = 'ap_deep_research'
 const REPORT_REQUEST = `You stopped without reporting. Call ${TASK_COMPLETION_TOOL_NAME} now with your result.`
 const CONTINUE_REQUEST = 'You were cut off. Continue from where you stopped.'
 const MAX_CONTINUATIONS = 2
@@ -346,6 +387,7 @@ const SUMMARY_MAX_LENGTH = 120
 
 const NOT_FOR_TASKS = [
     TASK_TOOL_NAME,
+    RESEARCH_TOOL_NAME,
     'ap_show_questions',
     'ap_show_quick_replies',
     'ap_show_connection_picker',
@@ -365,3 +407,28 @@ const NOT_FOR_TASKS = [
 ]
 
 type TaskResult = z.infer<typeof taskResult>
+
+type TaskDeps = {
+    workerTools: ToolSet
+    model: LanguageModel
+    provider: AIProviderName
+    tier: RunAgentTurnParams['tier']
+    modelId: string
+    taskPrompt: string
+    creditsLeftFor: (runKey: string) => RunAgentTurnParams['creditsLeft']
+    beginTask: (input: { title: string, taskId?: string }) => Promise<BeginAgentTaskResponse>
+    finishTask: (input: Omit<FinishAgentTaskRequest, 'platformId' | 'conversationId'>) => Promise<void>
+    eventEmitter: AgentEventEmitter
+    abortSignal: AbortSignal
+    log: RunAgentTurnParams['log']
+}
+
+type TaskRunOutput = {
+    taskId?: string
+    status: TaskResult['status']
+    summary: string
+    artifacts?: TaskResult['artifacts']
+    needs?: string
+    activity?: SubagentActivity
+    billedToolCalls?: { toolName: string, output: unknown }[]
+}

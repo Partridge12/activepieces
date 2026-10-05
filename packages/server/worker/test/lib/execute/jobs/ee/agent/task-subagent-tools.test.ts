@@ -176,6 +176,27 @@ describe('createTaskSubagentTools', () => {
         expect(runAgentTurn).not.toHaveBeenCalled()
     })
 
+    it('researches every subject in its own task, in parallel, with its own live card', async () => {
+        beginTask.mockImplementation(async ({ title }: { title: string }) => ({ taskId: `task-${title}`, messages: [] }))
+        runAgentTurn.mockImplementation(async (params: { tools: ToolSet, messages: { content: string }[] }) => {
+            await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: `Brief for ${params.messages[0].content.split('Subject: ')[1]}`, artifacts: [] }, EXECUTION_OPTIONS)
+            return turnResult()
+        })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_web_search']) })
+
+        const result = await tasks['ap_deep_research'].execute?.({ question: 'Pricing for 12 seats', subjects: ['Asana', 'ClickUp'] }, EXECUTION_OPTIONS)
+
+        expect(runAgentTurn).toHaveBeenCalledTimes(2)
+        expect(Object.keys(runAgentTurn.mock.calls[0][0].tools)).not.toContain('ap_deep_research')
+        expect(new Set(emitSubagentProgress.mock.calls.map(([event]) => event.toolCallId))).toEqual(new Set(['call-1:0', 'call-1:1']))
+        expect(result).toMatchObject({ tasks: [{ taskId: 'task-Asana', status: 'done', summary: 'Brief for Asana' }, { taskId: 'task-ClickUp', status: 'done', summary: 'Brief for ClickUp' }] })
+        expect(result).toMatchObject({ billedToolCalls: [{ toolName: 'ap_web_search' }, { toolName: 'ap_web_search' }] })
+    })
+
+    it('offers research only when web search is available', () => {
+        expect(createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow']) })).not.toHaveProperty('ap_deep_research')
+    })
+
     it('offers no task tool without a task prompt', () => {
         expect(createTaskSubagentTools({ ...BASE_PARAMS, taskPrompt: undefined, tools: toolSet(['ap_build_flow']) })).toEqual({})
     })

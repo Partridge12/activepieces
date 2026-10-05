@@ -1,4 +1,4 @@
-import { isObject } from '@activepieces/core-utils';
+import { isNil, isObject } from '@activepieces/core-utils';
 import { SubagentActivity } from '@activepieces/shared';
 import { t } from 'i18next';
 import { motion } from 'motion/react';
@@ -8,8 +8,9 @@ import { createPortal } from 'react-dom';
 import { TextWithTooltip } from '@/components/custom/text-with-tooltip';
 import { ToolCallMeta } from '@/features/chat/lib/chat-store';
 import { useChatStoreContext } from '@/features/chat/lib/chat-store-context';
-import { AnyToolPart } from '@/features/chat/lib/chat-types';
 import { cn } from '@/lib/utils';
+
+import { TaskBuilder } from '../lib/message-blocks';
 
 import {
   AppLogos,
@@ -25,7 +26,7 @@ export function SubagentGroup({
   toolCallMeta,
   isStreaming,
 }: {
-  builders: { toolCallId: string; part: AnyToolPart }[];
+  builders: TaskBuilder[];
   toolCallMeta: Record<string, ToolCallMeta>;
   isStreaming: boolean;
 }) {
@@ -33,11 +34,11 @@ export function SubagentGroup({
   const openTaskPanel = useChatStoreContext((s) => s.openTaskPanel);
   const closeTaskPanel = useChatStoreContext((s) => s.closeTaskPanel);
   const panelSlot = useContext(TaskPanelSlotContext);
-  const tasks = builders.map(({ toolCallId, part }) => ({
-    toolCallId,
+  const tasks = builders.map((builder) => ({
+    toolCallId: builder.toolCallId,
     activity: resolveActivity({
-      live: toolCallMeta[toolCallId]?.subagent,
-      part,
+      live: toolCallMeta[builder.toolCallId]?.subagent,
+      builder,
       isStreaming,
     }),
   }));
@@ -127,33 +128,40 @@ function SubagentRow({
 
 function resolveActivity({
   live,
-  part,
+  builder,
   isStreaming,
 }: {
   live: SubagentActivity | undefined;
-  part: AnyToolPart;
+  builder: TaskBuilder;
   isStreaming: boolean;
 }): SubagentActivity {
-  const saved = activityFromOutput(part);
+  const saved = activityFromOutput(builder);
   if (saved) return saved;
   if (live) {
     const stoppedMidRun = live.status === 'running' && !isStreaming;
     return stoppedMidRun ? { ...live, status: 'failed' } : live;
   }
-  const input = isObject(part.input) ? part.input : {};
+  const input = isObject(builder.part.input) ? builder.part.input : {};
+  const inputTitle =
+    typeof input['title'] === 'string' ? input['title'] : undefined;
   return {
-    title: typeof input['title'] === 'string' ? input['title'] : t('Task'),
+    title: builder.fallbackTitle ?? inputTitle ?? t('Task'),
     status: isStreaming ? 'running' : 'failed',
     steps: [],
     startedAt: '',
   };
 }
 
-function activityFromOutput(part: AnyToolPart): SubagentActivity | null {
-  if (part.state !== 'output-available') return null;
-  const output = parseOutput(part.output);
+function activityFromOutput(builder: TaskBuilder): SubagentActivity | null {
+  if (builder.part.state !== 'output-available') return null;
+  const output = parseOutput(builder.part.output);
   if (!isObject(output)) return null;
-  const activity = output['activity'];
+  const task = isNil(builder.researchIndex)
+    ? output
+    : Array.isArray(output['tasks'])
+    ? output['tasks'][builder.researchIndex]
+    : undefined;
+  const activity = isObject(task) ? task['activity'] : undefined;
   return isSubagentActivity(activity) ? activity : null;
 }
 

@@ -190,14 +190,17 @@ export function buildMessageBlocks({
         }
         continue;
       }
-      if (toolName === 'ap_run_task') {
+      if (toolName === 'ap_run_task' || toolName === 'ap_deep_research') {
         endSegment();
-        const builder = { toolCallId: chatPartUtils.getToolCallId(p), part: p };
+        const builders = taskBuilders({
+          part: p,
+          research: toolName === 'ap_deep_research',
+        });
         const previous = result[result.length - 1];
         if (previous?.kind === 'subagents') {
-          previous.builders.push(builder);
+          previous.builders.push(...builders);
         } else {
-          result.push({ kind: 'subagents', builders: [builder] });
+          result.push({ kind: 'subagents', builders });
         }
         continue;
       }
@@ -260,6 +263,29 @@ export function buildMessageBlocks({
 // cards into one collapsed `card-group` so the timeline stays calm; a lone card
 // renders unchanged. Recurses into a build's children, which render through the
 // same block pipeline.
+function taskBuilders({
+  part,
+  research,
+}: {
+  part: AnyToolPart;
+  research: boolean;
+}): TaskBuilder[] {
+  const toolCallId = chatPartUtils.getToolCallId(part);
+  if (!research) return [{ toolCallId, part }];
+  const input = isObject(part.input) ? part.input : {};
+  const subjects = Array.isArray(input['subjects'])
+    ? input['subjects'].filter(
+        (subject): subject is string => typeof subject === 'string',
+      )
+    : [];
+  return subjects.map((subject, index) => ({
+    toolCallId: `${toolCallId}:${index}`,
+    part,
+    researchIndex: index,
+    fallbackTitle: subject,
+  }));
+}
+
 function memorySaveDeclined(output: unknown): boolean {
   const parsed = parseToJsonIfPossible(output);
   return isObject(parsed) && parsed['saved'] === false;
@@ -389,7 +415,7 @@ export type MessageBlock =
   | { kind: 'batch-progress'; data: BatchProgressData }
   | {
       kind: 'subagents';
-      builders: { toolCallId: string; part: AnyToolPart }[];
+      builders: TaskBuilder[];
     }
   | OutcomeCardBlock
   | { kind: 'card-group'; cards: OutcomeCardBlock[] }
@@ -412,5 +438,12 @@ export type OutcomeCardBlock =
   | { kind: 'action-receipt'; toolCallId: string }
   | { kind: 'image'; toolCallId: string }
   | { kind: 'files'; toolCallId: string };
+
+export type TaskBuilder = {
+  toolCallId: string;
+  part: AnyToolPart;
+  researchIndex?: number;
+  fallbackTitle?: string;
+};
 
 export type SourceItem = { key: string; href?: string; title?: string };
