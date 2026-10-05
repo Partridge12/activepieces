@@ -20,7 +20,6 @@ import {
   ChatUIMessage,
   chatPartUtils,
 } from '@/features/chat/lib/chat-types';
-import { chatUtils } from '@/features/chat/lib/chat-utils';
 import { useTts } from '@/features/chat/lib/use-tts';
 import { cn } from '@/lib/utils';
 
@@ -369,12 +368,12 @@ function MessageBlocks({
               <div key={`text-${i}`} className={cn('py-1', PROSE_CLASSES)}>
                 {isActiveText && !isResumed ? (
                   <StreamingText
-                    text={chatUtils.withoutDashes(block.text)}
+                    text={block.text}
                     components={markdownPreviewComponents}
                   />
                 ) : (
                   <Markdown components={markdownPreviewComponents}>
-                    {chatUtils.withoutDashes(block.text)}
+                    {block.text}
                   </Markdown>
                 )}
               </div>

@@ -589,27 +589,7 @@ function newChatModelName({
   return aiProviderUtils.getCuratedChatModels({ provider })?.[0]?.id ?? null;
 }
 
-function withoutDashes(text: string): string {
-  return text
-    .split(CODE_SEGMENT_PATTERN)
-    .map((segment) =>
-      segment.startsWith('`')
-        ? segment
-        : segment
-            .replace(NUMBER_RANGE_DASH_PATTERN, '$1-$2')
-            .replace(LINE_START_DASH_PATTERN, '$1')
-            .replace(DASH_PATTERN, ', '),
-    )
-    .join('');
-}
-
-const CODE_SEGMENT_PATTERN = /(```[\s\S]*?```|`[^`\n]*`)/;
-const NUMBER_RANGE_DASH_PATTERN = /(\d)\s*[–—]\s*(\d)/g;
-const LINE_START_DASH_PATTERN = /^(\s*)[–—]\s*/gm;
-const DASH_PATTERN = /\s*[–—]\s*/g;
-
 export const chatUtils = {
-  withoutDashes,
   newChatEvent: 'ap:new-chat',
   newChatModelName,
   reopensSameConversation,
