@@ -25,6 +25,9 @@ describe('createBuilderSubagentTools', () => {
         const result = await builder['ap_build_flow_in_subagent'].execute?.({ flowName: 'Save order', brief: 'folderName: Orders' }, EXECUTION_OPTIONS)
 
         const params = runAgentTurn.mock.calls[0][0]
+        const consumeStream = vi.fn().mockResolvedValue(undefined)
+        await params.sinks.drainStream({ consumeStream })
+        expect(consumeStream).toHaveBeenCalledTimes(1)
         expect(Object.keys(params.tools).sort()).toEqual(['ap_build_flow', 'ap_update_step', 'ap_validate_flow'])
         expect(params.phaseState).toEqual({ phase: 'build' })
         expect(params.systemPrompt).toContain('BUILDER PROMPT TEXT')
@@ -63,7 +66,7 @@ function turnResult({ texts }: { texts: string[] }): Record<string, unknown> {
     return {
         uiParts: [
             { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't1', toolName: 'ap_build_flow', input: { trigger: { pieceName: '@activepieces/piece-subflows' }, steps: [{ pieceName: '@activepieces/piece-ai' }, { pieceName: '@activepieces/piece-subflows' }] }, status: PersistedToolCallStatus.COMPLETED, output: { content: [{ type: 'text', text: '✅ Flow "Save order" created\nOpen: http://x' }] } },
-            { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't2', toolName: 'ap_validate_flow', input: {}, status: PersistedToolCallStatus.ERROR, output: '❌ Flow not found.' },
+            { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't2', toolName: 'ap_validate_flow', input: {}, status: PersistedToolCallStatus.COMPLETED, output: { content: [{ type: 'text', text: '❌ Flow not found.' }] } },
             ...texts.map((text) => ({ type: PersistedAgentPartType.TEXT, text })),
         ],
         toolCalls: [{ toolName: 'ap_build_flow' }, { toolName: 'ap_validate_flow' }],

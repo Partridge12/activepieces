@@ -1,5 +1,5 @@
 import { AIProviderName, isNil, isObject } from '@activepieces/core-utils'
-import { PersistedAgentPart, PersistedAgentPartType, PersistedToolCallStatus, SubagentActivity, SubagentStep } from '@activepieces/shared'
+import { agentToolClassification, PersistedAgentPart, PersistedAgentPartType, PersistedToolCallStatus, SubagentActivity, SubagentStep } from '@activepieces/shared'
 import { LanguageModel, tool, ToolSet } from 'ai'
 import { z } from 'zod'
 import { AgentTurnResult, runAgentTurn, RunAgentTurnParams } from '../run-agent-turn'
@@ -44,6 +44,9 @@ export function createBuilderSubagentTools({ tools, model, provider, tier, model
                     log,
                     creditsLeft,
                     sinks: {
+                        drainStream: async (result) => {
+                            await result.consumeStream()
+                        },
                         onProgress: ({ uiParts }) => report({ flowName, status: 'running', steps: stepsFrom(uiParts), pieces: piecesFrom(uiParts), startedAt: startedAt.toISOString() }),
                     },
                 })
@@ -83,7 +86,7 @@ function builderResult({ flowName, turn, startedAt }: { flowName: string, turn: 
 
 function stepsFrom(parts: PersistedAgentPart[]): SubagentStep[] {
     return parts.flatMap((part): SubagentStep[] => part.type === PersistedAgentPartType.TOOL_CALL
-        ? [{ id: part.toolCallId, toolName: part.toolName, status: part.status === PersistedToolCallStatus.ERROR ? 'failed' : 'done', summary: firstLine(part.output) }]
+        ? [{ id: part.toolCallId, toolName: part.toolName, status: stepFailed(part.status, part.output) ? 'failed' : 'done', summary: firstLine(part.output) }]
         : [])
 }
 
@@ -100,6 +103,10 @@ function pieceNamesIn(input: unknown): string[] {
     const trigger = pieceNamesIn(input['trigger'])
     const steps = Array.isArray(input['steps']) ? input['steps'].flatMap(pieceNamesIn) : []
     return [...trigger, ...own, ...steps]
+}
+
+function stepFailed(status: PersistedToolCallStatus, output: unknown): boolean {
+    return status === PersistedToolCallStatus.ERROR || agentToolClassification.hasFailureTextPrefix(outputText(output).trim())
 }
 
 function firstLine(output: unknown): string {

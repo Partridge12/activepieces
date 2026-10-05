@@ -175,6 +175,7 @@ export const agentConfigRpc = (log: FastifyBaseLogger) => ({
             imageEditAvailable: !isNil(imageModelId),
             emailAvailable: emailEnabled,
             agentsAvailable,
+            buildersAvailable: !dryRun,
             userEmail: runUserEmail,
             userIdentity,
             connections: inventoryResult && !inventoryResult.error

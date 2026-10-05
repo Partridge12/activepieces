@@ -378,9 +378,7 @@ type StreamPhase = 'idle' | 'awaiting-stream' | 'streaming' | 'reconciling';
 
 export type { StreamPhase };
 
-function isSubagentProgressEvent(
-  data: unknown,
-): data is SubagentProgressEvent {
+function isSubagentProgressEvent(data: unknown): data is SubagentProgressEvent {
   if (typeof data !== 'object' || data === null) return false;
   return (
     'toolCallId' in data &&

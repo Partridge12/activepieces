@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
 import { TextWithTooltip } from '@/components/custom/text-with-tooltip';
+import { Markdown } from '@/components/prompt-kit/markdown';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 import { ToolCallMeta } from '@/features/chat/lib/chat-store';
 import { AnyToolPart } from '@/features/chat/lib/chat-types';
@@ -88,25 +89,32 @@ function SubagentRow({ activity }: { activity: SubagentActivity }) {
 
       <AnimatePresence initial={false}>
         {open && (
-          <motion.ol
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
             className="overflow-hidden pb-2 pl-11 pr-3"
           >
-            {PHASES.map((milestone, index) => (
-              <Milestone
-                key={milestone.id}
-                label={t(
-                  milestoneState({ activity, phase, index }) === 'done'
-                    ? milestone.done
-                    : milestone.active,
-                )}
-                state={milestoneState({ activity, phase, index })}
-              />
-            ))}
-          </motion.ol>
+            <ol>
+              {PHASES.map((milestone, index) => (
+                <Milestone
+                  key={milestone.id}
+                  label={t(
+                    milestoneState({ activity, phase, index }) === 'done'
+                      ? milestone.done
+                      : milestone.active,
+                  )}
+                  state={milestoneState({ activity, phase, index })}
+                />
+              ))}
+            </ol>
+            {activity.status === 'failed' && activity.report && (
+              <div className="mt-2 rounded-lg bg-warning-3 px-3 py-2 text-xs text-gray-12">
+                <Markdown>{activity.report}</Markdown>
+              </div>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
