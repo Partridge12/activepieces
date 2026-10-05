@@ -449,6 +449,7 @@ import { AddWaitpointDeadLetteredAt1857000000000 } from './migration/postgres/18
 import { AddAgentFolderId1858000000000 } from './migration/postgres/1858000000000-AddAgentFolderId'
 import { AddPlatformModelTier1859000000000 } from './migration/postgres/1859000000000-AddPlatformModelTier'
 import { AddPlatformTierFastAndConversationTier1860000000000 } from './migration/postgres/1860000000000-AddPlatformTierFastAndConversationTier'
+import { AddAiSpecificModelsVisibleToPlatformConfiguration1861000000000 } from './migration/postgres/1861000000000-AddAiSpecificModelsVisibleToPlatformConfiguration'
 
 const getSslConfig = (): boolean | TlsOptions => {
     const useSsl = system.get(AppSystemProp.POSTGRES_USE_SSL)
@@ -913,6 +914,7 @@ export const getMigrations = (): (new () => Migration)[] => {
         AddAgentFolderId1858000000000,
         AddPlatformModelTier1859000000000,
         AddPlatformTierFastAndConversationTier1860000000000,
+        AddAiSpecificModelsVisibleToPlatformConfiguration1861000000000,
     ]
     return migrations
 }
