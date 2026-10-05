@@ -7,7 +7,6 @@
 
 const BUILD_ONLY_TOOL_NAMES = new Set<string>([
     'ap_build_flow',
-    'ap_build_flow_in_subagent',
     'ap_create_folder',
     'ap_create_flow',
     'ap_add_step',

@@ -46,7 +46,7 @@ All three go in an `Order intake` folder with an `Orders` table.
 **Shared work goes in one subflow.** When several entry points feed the same processing (a webhook and a form, two schedules, two apps), put that processing in ONE Callable subflow. Each entry flow then only receives its input and calls the subflow. Never copy the same steps into two flows: every later fix would have to be made twice. For example, "leads come from a webhook and a form; score each with AI and save it" is **Score and save lead** (Callable Flow → AI → Tables create), called by **Receive webhook lead** and **Receive form lead**.
 
 How to build one:
-0. **Builders:** hand each flow to `ap_build_flow_in_subagent` instead of calling `ap_build_flow` yourself. Independent flows go in the same step so their builders run in parallel. You keep the folder, the tables, the folder check, testing and turning it on.
+0. **Tasks:** hand each flow to its own `ap_run_task` ("build and validate the Save order flow in folder X") instead of building them all yourself. Independent flows go in the same step so they build in parallel. You keep the folder, the tables, the folder check, testing and turning it on.
 1. **Folder:** `ap_create_folder` with a name for the whole solution. Pass that `folderName` to every `ap_build_flow` and `ap_create_table` in it.
 2. **Names:** name each flow for its one job, in plain words ("Save order", not "Flow 2" or "Order flow helper").
 3. **Order:** tables first, then subflows, then the flows that call them. Each step needs an id the previous one returned.

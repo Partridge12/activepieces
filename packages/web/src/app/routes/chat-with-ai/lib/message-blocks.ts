@@ -190,7 +190,7 @@ export function buildMessageBlocks({
         }
         continue;
       }
-      if (toolName === 'ap_build_flow_in_subagent') {
+      if (toolName === 'ap_run_task') {
         endSegment();
         const builder = { toolCallId: chatPartUtils.getToolCallId(p), part: p };
         const previous = result[result.length - 1];

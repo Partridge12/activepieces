@@ -1,7 +1,7 @@
 import { isObject } from '@activepieces/core-utils';
-import { SubagentActivity, SubagentStep } from '@activepieces/shared';
+import { SubagentActivity } from '@activepieces/shared';
 import { t } from 'i18next';
-import { AlertTriangle, Check, Circle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, Hand, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
@@ -45,13 +45,12 @@ export function SubagentGroup({
       <div className="px-4 pt-3 pb-1 text-xs text-gray-11">
         {working
           ? t(
-              '{count, plural, =1 {Building your flow} other {Building # flows at once}}',
+              '{count, plural, =1 {Working on a task} other {Working on # tasks at once}}',
               { count: builders.length },
             )
-          : t(
-              '{count, plural, =1 {Your flow is built} other {# flows built}}',
-              { count: builders.length },
-            )}
+          : t('{count, plural, =1 {Task finished} other {# tasks finished}}', {
+              count: builders.length,
+            })}
       </div>
       <div className="pb-1.5">
         {activities.map(({ toolCallId, activity }) => (
@@ -64,31 +63,41 @@ export function SubagentGroup({
 
 function SubagentRow({ activity }: { activity: SubagentActivity }) {
   const [open, setOpen] = useState(false);
-  const phase = currentPhase(activity.steps);
+  const history = activity.statusHistory ?? [];
+  const artifacts = activity.artifacts ?? [];
+  const note =
+    activity.status === 'blocked'
+      ? activity.needs
+      : activity.status === 'failed'
+      ? activity.summary
+      : undefined;
+  const hasDetails =
+    history.length > 0 || artifacts.length > 0 || Boolean(note);
 
   return (
     <div className="px-1.5">
       <button
         type="button"
-        className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-gray-3"
+        className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-gray-3 disabled:hover:bg-transparent"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        disabled={!hasDetails}
       >
         <StatusMark status={activity.status} />
         <div className="min-w-0 flex-1">
-          <TextWithTooltip tooltipMessage={activity.flowName}>
+          <TextWithTooltip tooltipMessage={activity.title}>
             <p className="truncate text-sm font-medium text-gray-12">
-              {activity.flowName}
+              {activity.title}
             </p>
           </TextWithTooltip>
-          <LiveLine activity={activity} phase={phase} />
+          <LiveLine activity={activity} />
         </div>
         <AppLogos pieces={activity.pieces ?? []} />
         <Duration activity={activity} />
       </button>
 
       <AnimatePresence initial={false}>
-        {open && (
+        {open && hasDetails && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -97,21 +106,39 @@ function SubagentRow({ activity }: { activity: SubagentActivity }) {
             className="overflow-hidden pb-2 pl-11 pr-3"
           >
             <ol>
-              {PHASES.map((milestone, index) => (
+              {history.map((line, index) => (
                 <Milestone
-                  key={milestone.id}
-                  label={t(
-                    milestoneState({ activity, phase, index }) === 'done'
-                      ? milestone.done
-                      : milestone.active,
-                  )}
-                  state={milestoneState({ activity, phase, index })}
+                  key={`${index}-${line}`}
+                  label={line}
+                  active={
+                    activity.status === 'running' &&
+                    index === history.length - 1
+                  }
                 />
               ))}
             </ol>
-            {activity.status === 'failed' && activity.report && (
-              <div className="mt-2 rounded-lg bg-warning-3 px-3 py-2 text-xs text-gray-12">
-                <Markdown>{activity.report}</Markdown>
+            {artifacts.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {artifacts.map((artifact) => (
+                  <span
+                    key={`${artifact.type}-${artifact.id}`}
+                    className="max-w-full truncate rounded-md bg-gray-3 px-2 py-0.5 text-xs text-gray-12"
+                  >
+                    {artifact.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {note && (
+              <div
+                className={cn(
+                  'mt-2 rounded-lg px-3 py-2 text-xs text-gray-12',
+                  activity.status === 'blocked'
+                    ? 'bg-accent-3'
+                    : 'bg-warning-3',
+                )}
+              >
+                <Markdown>{note}</Markdown>
               </div>
             )}
           </motion.div>
@@ -121,23 +148,23 @@ function SubagentRow({ activity }: { activity: SubagentActivity }) {
   );
 }
 
-function LiveLine({
-  activity,
-  phase,
-}: {
-  activity: SubagentActivity;
-  phase: number;
-}) {
+function LiveLine({ activity }: { activity: SubagentActivity }) {
   if (activity.status === 'done') {
-    return <p className="text-xs leading-4 text-gray-11">{t('Ready')}</p>;
+    return <p className="text-xs leading-4 text-gray-11">{t('Done')}</p>;
+  }
+  if (activity.status === 'blocked') {
+    return (
+      <p className="text-xs leading-4 text-accent-11">
+        {t('Needs your input')}
+      </p>
+    );
   }
   if (activity.status === 'failed') {
     return (
       <p className="text-xs leading-4 text-warning-11">{t('Needs a look')}</p>
     );
   }
-  const label =
-    activity.steps.length === 0 ? 'Getting started' : PHASES[phase].active;
+  const label = activity.statusLine ?? t('Getting started');
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
@@ -147,8 +174,8 @@ function LiveLine({
         exit={{ opacity: 0, y: -3 }}
         transition={{ duration: 0.18 }}
       >
-        <TextShimmer as="p" className="text-xs font-normal leading-4">
-          {t(label)}
+        <TextShimmer as="p" className="truncate text-xs font-normal leading-4">
+          {label}
         </TextShimmer>
       </motion.div>
     </AnimatePresence>
@@ -165,6 +192,13 @@ function StatusMark({ status }: { status: SubagentActivity['status'] }) {
       >
         <Check className="size-3 text-on-success" strokeWidth={3} />
       </motion.span>
+    );
+  }
+  if (status === 'blocked') {
+    return (
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-3">
+        <Hand className="size-3 text-accent-11" />
+      </span>
     );
   }
   if (status === 'failed') {
@@ -250,52 +284,20 @@ function AppLogo({ pieceName }: { pieceName: string }) {
   );
 }
 
-function Milestone({
-  label,
-  state,
-}: {
-  label: string;
-  state: 'done' | 'active' | 'todo';
-}) {
+function Milestone({ label, active }: { label: string; active: boolean }) {
   return (
     <li className="flex items-center gap-2 py-0.5 text-xs">
-      {state === 'done' && (
-        <Check className="size-3.5 text-success-10" strokeWidth={2.5} />
+      {active ? (
+        <Loader2 className="size-3.5 shrink-0 animate-spin text-accent-10 motion-reduce:animate-none" />
+      ) : (
+        <Check
+          className="size-3.5 shrink-0 text-success-10"
+          strokeWidth={2.5}
+        />
       )}
-      {state === 'active' && (
-        <Loader2 className="size-3.5 animate-spin text-accent-10 motion-reduce:animate-none" />
-      )}
-      {state === 'todo' && <Circle className="size-3.5 text-gray-9" />}
-      <span className={cn(state === 'todo' ? 'text-gray-11' : 'text-gray-12')}>
-        {label}
-      </span>
+      <span className="text-gray-12">{label}</span>
     </li>
   );
-}
-
-function milestoneState({
-  activity,
-  phase,
-  index,
-}: {
-  activity: SubagentActivity;
-  phase: number;
-  index: number;
-}): 'done' | 'active' | 'todo' {
-  if (activity.status !== 'running') {
-    return index <= phase || activity.status === 'done' ? 'done' : 'todo';
-  }
-  if (index < phase) return 'done';
-  return index === phase ? 'active' : 'todo';
-}
-
-function currentPhase(steps: SubagentStep[]): number {
-  const last = steps[steps.length - 1];
-  if (!last) return 0;
-  const index = PHASES.findIndex((phase) =>
-    phase.tools.includes(last.toolName),
-  );
-  return index === -1 ? 0 : index;
 }
 
 function resolveActivity({
@@ -309,11 +311,13 @@ function resolveActivity({
 }): SubagentActivity {
   const saved = activityFromOutput(part);
   if (saved) return saved;
-  if (live) return live;
+  if (live) {
+    const stoppedMidRun = live.status === 'running' && !isStreaming;
+    return stoppedMidRun ? { ...live, status: 'failed' } : live;
+  }
   const input = isObject(part.input) ? part.input : {};
   return {
-    flowName:
-      typeof input['flowName'] === 'string' ? input['flowName'] : t('New flow'),
+    title: typeof input['title'] === 'string' ? input['title'] : t('Task'),
     status: isStreaming ? 'running' : 'failed',
     steps: [],
     startedAt: '',
@@ -331,11 +335,10 @@ function activityFromOutput(part: AnyToolPart): SubagentActivity | null {
 function isSubagentActivity(value: unknown): value is SubagentActivity {
   return (
     isObject(value) &&
-    typeof value['flowName'] === 'string' &&
+    typeof value['title'] === 'string' &&
     typeof value['startedAt'] === 'string' &&
-    (value['status'] === 'running' ||
-      value['status'] === 'done' ||
-      value['status'] === 'failed') &&
+    typeof value['status'] === 'string' &&
+    STATUSES.includes(value['status']) &&
     Array.isArray(value['steps'])
   );
 }
@@ -351,47 +354,4 @@ function parseOutput(output: unknown): unknown {
 
 const MAX_LOGOS = 3;
 const PLUMBING_PIECES = ['@activepieces/piece-subflows'];
-
-const PHASES = [
-  {
-    id: 'explore',
-    active: 'Looking at the apps',
-    done: 'Picked the apps',
-    tools: [
-      'ap_research_pieces',
-      'ap_search_actions',
-      'ap_search_triggers',
-      'ap_get_piece_props',
-      'ap_resolve_property_options',
-      'ap_resolve_property_chain',
-      'ap_list_connections',
-      'ap_list_tables',
-    ],
-  },
-  {
-    id: 'build',
-    active: 'Building the steps',
-    done: 'Built the steps',
-    tools: [
-      'ap_build_flow',
-      'ap_add_step',
-      'ap_update_step',
-      'ap_update_trigger',
-      'ap_delete_step',
-      'ap_add_branch',
-      'ap_update_branch',
-      'ap_delete_branch',
-    ],
-  },
-  {
-    id: 'check',
-    active: 'Checking everything works',
-    done: 'Checked everything works',
-    tools: [
-      'ap_validate_step_config',
-      'ap_validate_flow',
-      'ap_flow_structure',
-      'ap_read_step_settings',
-    ],
-  },
-];
+const STATUSES: string[] = ['running', 'done', 'blocked', 'failed'];

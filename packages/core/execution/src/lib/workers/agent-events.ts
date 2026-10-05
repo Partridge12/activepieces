@@ -35,6 +35,7 @@ export type ActionPreviewEvent = {
     isBatch: boolean
     batchCount?: number
     batchSamples?: Record<string, unknown>[]
+    taskTitle?: string
 }
 
 export type ActionReceiptEvent = {
@@ -100,13 +101,18 @@ export type SubagentStep = {
 }
 
 export type SubagentActivity = {
-    flowName: string
-    status: 'running' | 'done' | 'failed'
+    taskId?: string
+    title: string
+    status: 'running' | 'done' | 'blocked' | 'failed'
+    statusLine?: string
+    statusHistory?: string[]
     steps: SubagentStep[]
     pieces?: string[]
+    artifacts?: { type: string, id: string, name: string }[]
+    needs?: string
+    summary?: string
     startedAt: string
     durationMs?: number
-    report?: string
 }
 
 export type SubagentProgressEvent = {

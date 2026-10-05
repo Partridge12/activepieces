@@ -3319,15 +3319,11 @@
   "{tier}: {status}": "{tier}: {status}",
   "{tier}, {status}": "{tier}, {status}",
   "Show full output": "Show full output",
-  "{count, plural, =1 {Building your flow} other {Building # flows at once}}": "{count, plural, =1 {Building your flow} other {Building # flows at once}}",
-  "{count, plural, =1 {Your flow is built} other {# flows built}}": "{count, plural, =1 {Your flow is built} other {# flows built}}",
   "Needs a look": "Needs a look",
   "Getting started": "Getting started",
-  "Looking at the apps": "Looking at the apps",
-  "Picked the apps": "Picked the apps",
-  "Building the steps": "Building the steps",
-  "Built the steps": "Built the steps",
-  "Checking everything works": "Checking everything works",
-  "Checked everything works": "Checked everything works",
-  "New flow": "New flow"
+  "{count, plural, =1 {Working on a task} other {Working on # tasks at once}}": "{count, plural, =1 {Working on a task} other {Working on # tasks at once}}",
+  "{count, plural, =1 {Task finished} other {# tasks finished}}": "{count, plural, =1 {Task finished} other {# tasks finished}}",
+  "Needs your input": "Needs your input",
+  "Task": "Task",
+  "Asked by {taskTitle}": "Asked by {taskTitle}"
 }

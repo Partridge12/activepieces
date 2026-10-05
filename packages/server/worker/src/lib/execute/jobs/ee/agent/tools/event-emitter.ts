@@ -1,5 +1,6 @@
-import { tryCatch } from '@activepieces/core-utils'
+import { isNil, tryCatch } from '@activepieces/core-utils'
 import { ActionPreviewEvent, ActionReceiptEvent, AgentEventType, BuildPlanEvent, FileProducedEvent, ImageGeneratedEvent, SendAgentEventRequest, SubagentProgressEvent, ToolProgressEvent } from '@activepieces/shared'
+import { taskContext } from './task-context'
 import { AgentEventEmitter } from './tool-primitives'
 
 export function createEventEmitter({ sendEvent, userId, conversationId, log }: {
@@ -30,8 +31,9 @@ export function createEventEmitter({ sendEvent, userId, conversationId, log }: {
             })
         },
         emitActionPreview(data: ActionPreviewEvent): void {
+            const taskTitle = taskContext.currentTitle()
             void sendWithRetry({
-                event: { type: AgentEventType.ACTION_PREVIEW, data },
+                event: { type: AgentEventType.ACTION_PREVIEW, data: isNil(taskTitle) ? data : { ...data, taskTitle } },
                 maxAttempts: 3,
             })
         },

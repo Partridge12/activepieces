@@ -1,0 +1,146 @@
+import { AIProviderName } from '@activepieces/core-utils'
+import { PersistedAgentPartType, PersistedToolCallStatus, TASK_COMPLETION_TOOL_NAME } from '@activepieces/shared'
+import { tool, ToolExecutionOptions, ToolSet } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+
+const runAgentTurn = vi.fn()
+vi.mock('../../../../../../src/lib/execute/jobs/ee/agent/run-agent-turn', () => ({
+    runAgentTurn: (...args: unknown[]) => runAgentTurn(...args),
+}))
+
+import { createTaskSubagentTools } from '../../../../../../src/lib/execute/jobs/ee/agent/tools/task-subagent-tools'
+import { taskContext } from '../../../../../../src/lib/execute/jobs/ee/agent/tools/task-context'
+
+describe('createTaskSubagentTools', () => {
+    beforeEach(() => {
+        runAgentTurn.mockReset()
+        emitSubagentProgress.mockReset()
+        beginTask.mockReset()
+        finishTask.mockReset()
+        beginTask.mockResolvedValue({ taskId: 'task-1', messages: [] })
+        finishTask.mockResolvedValue(undefined)
+    })
+
+    it('runs the goal with every tool except the user-facing ones, inside the task context', async () => {
+        let titleDuringRun: string | undefined
+        runAgentTurn.mockImplementation(async (params: { tools: ToolSet }) => {
+            titleDuringRun = taskContext.currentTitle()
+            await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Built it.', artifacts: [{ type: 'flow', id: 'f1', name: 'Save order' }] }, EXECUTION_OPTIONS)
+            return turnResult()
+        })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow', 'ap_web_search', 'ap_execute_action', 'ap_show_questions', 'ap_show_quick_replies', 'ap_remember', 'ap_set_build_plan']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Build Save order', brief: 'Build the Save order flow' }, EXECUTION_OPTIONS)
+
+        const params = runAgentTurn.mock.calls[0][0]
+        expect(Object.keys(params.tools).sort()).toEqual(['ap_build_flow', 'ap_execute_action', 'ap_set_phase', 'ap_web_search', TASK_COMPLETION_TOOL_NAME].sort())
+        expect(params.allToolNames).toContain(TASK_COMPLETION_TOOL_NAME)
+        expect(params.systemPrompt).toBe('TASK PROMPT')
+        expect(params.phaseState).toEqual({ phase: 'discovery' })
+        expect(params.messages).toEqual([{ role: 'user', content: 'Build the Save order flow' }])
+        expect(titleDuringRun).toBe('Build Save order')
+        expect(result).toMatchObject({ taskId: 'task-1', status: 'done', summary: 'Built it.', artifacts: [{ type: 'flow', id: 'f1', name: 'Save order' }], billedToolCalls: [{ toolName: 'ap_web_search', output: {} }] })
+        expect(finishTask).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'task-1', status: 'DONE', summary: 'Built it.', messages: [{ role: 'user', content: 'Build the Save order flow' }, { role: 'assistant', content: 'ok' }] }))
+    })
+
+    it('resumes an earlier task with its history, and shows its own status line live', async () => {
+        beginTask.mockResolvedValue({ taskId: 'task-1', messages: [{ role: 'user', content: 'first brief' }, { role: 'assistant', content: 'blocked' }] })
+        runAgentTurn.mockImplementation(async (params: { tools: ToolSet, sinks: { onProgress: (progress: { uiParts: unknown[] }) => void } }) => {
+            params.sinks.onProgress({ uiParts: [{ type: PersistedAgentPartType.THINKING_STATUS, text: 'Checking the Gmail connection' }] })
+            await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'blocked', summary: 'Gmail is not connected.', artifacts: [], needs: 'A Gmail connection' }, EXECUTION_OPTIONS)
+            return turnResult()
+        })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Build Save order', brief: 'Gmail is connected now', taskId: 'task-1' }, EXECUTION_OPTIONS)
+
+        expect(beginTask).toHaveBeenCalledWith({ title: 'Build Save order', taskId: 'task-1' })
+        expect(runAgentTurn.mock.calls[0][0].messages).toEqual([{ role: 'user', content: 'first brief' }, { role: 'assistant', content: 'blocked' }, { role: 'user', content: 'Gmail is connected now' }])
+        expect(emitSubagentProgress.mock.calls.map(([event]) => event.data.statusLine)).toContain('Checking the Gmail connection')
+        expect(result).toMatchObject({ status: 'blocked', needs: 'A Gmail connection' })
+        expect(finishTask).toHaveBeenCalledWith(expect.objectContaining({ status: 'BLOCKED' }))
+    })
+
+    it('switches its own phase, never the main chat\'s', async () => {
+        const mainPhase = { phase: 'discovery' }
+        const mainSetPhase = tool({ description: 'main', inputSchema: z.object({ phase: z.string() }), execute: async ({ phase }) => {
+            mainPhase.phase = phase
+            return 'ok'
+        } })
+        let taskPhase: string | undefined
+        runAgentTurn.mockImplementation(async (params: { tools: ToolSet, phaseState: { phase: string } }) => {
+            await params.tools['ap_set_phase'].execute?.({ phase: 'build' }, EXECUTION_OPTIONS)
+            taskPhase = params.phaseState.phase
+            return turnResult()
+        })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: { ...toolSet(['ap_build_flow']), ap_set_phase: mainSetPhase } })
+
+        await tasks['ap_run_task'].execute?.({ title: 'Build', brief: 'Build it' }, EXECUTION_OPTIONS)
+
+        expect(taskPhase).toBe('build')
+        expect(mainPhase.phase).toBe('discovery')
+    })
+
+    it('marks a task that stopped without reporting as failed', async () => {
+        runAgentTurn.mockResolvedValue(turnResult())
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research', brief: 'Find out' }, EXECUTION_OPTIONS)
+
+        expect(result).toMatchObject({ status: 'failed' })
+        expect(finishTask).toHaveBeenCalledWith(expect.objectContaining({ status: 'FAILED' }))
+    })
+
+    it('reports a task that could not start, such as one still running', async () => {
+        beginTask.mockRejectedValue(new Error('Task task-1 does not exist in this conversation or is still running'))
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research', brief: 'Again', taskId: 'task-1' }, EXECUTION_OPTIONS)
+
+        expect(result).toMatchObject({ status: 'failed', summary: expect.stringContaining('still running') })
+        expect(runAgentTurn).not.toHaveBeenCalled()
+    })
+
+    it('offers no task tool without a task prompt', () => {
+        expect(createTaskSubagentTools({ ...BASE_PARAMS, taskPrompt: undefined, tools: toolSet(['ap_build_flow']) })).toEqual({})
+    })
+})
+
+function toolSet(names: string[]): ToolSet {
+    return Object.fromEntries(names.map((name) => [name, tool({ description: name, inputSchema: z.object({}), execute: async () => 'ok' })]))
+}
+
+function turnResult(): Record<string, unknown> {
+    return {
+        uiParts: [
+            { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't1', toolName: 'ap_web_search', input: {}, status: PersistedToolCallStatus.COMPLETED, output: { content: [{ type: 'text', text: 'results' }] } },
+        ],
+        accumulatedResponseMessages: [{ role: 'assistant', content: 'ok' }],
+        toolCalls: [],
+        streamError: null,
+        creditsExhausted: false,
+        budgetExceeded: false,
+        truncatedAfterRetries: false,
+    }
+}
+
+const emitSubagentProgress = vi.fn()
+const beginTask = vi.fn()
+const finishTask = vi.fn()
+
+const BASE_PARAMS = {
+    model: 'test-model',
+    provider: AIProviderName.OPENAI,
+    tier: { id: 'smart', thinkingBudget: 0, modelId: 'm' },
+    modelId: 'm',
+    taskPrompt: 'TASK PROMPT',
+    creditsLeftFor: () => undefined,
+    beginTask,
+    finishTask,
+    eventEmitter: { emitToolProgress: vi.fn(), emitActionPreview: vi.fn(), emitActionReceipt: vi.fn(), emitImageGenerated: vi.fn(), emitFileProduced: vi.fn(), emitBuildPlan: vi.fn(), emitSubagentProgress },
+    abortSignal: new AbortController().signal,
+    log: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+}
+
+const EXECUTION_OPTIONS: ToolExecutionOptions = { toolCallId: 'call-1', messages: [] }

@@ -12,6 +12,7 @@ import {
   PersistedAgentMessage,
   ToolProgressEvent,
   AgentMessageSource,
+  SubagentActivity,
   SubagentProgressEvent,
 } from '@activepieces/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -199,6 +200,10 @@ function appendGatePart({
   ];
 }
 
+function progressOf(activity: SubagentActivity): number {
+  return activity.steps.length + (activity.statusHistory?.length ?? 0);
+}
+
 const ALLOWED_MIME_SET: ReadonlySet<string> = new Set(CHAT_ALLOWED_MIME_TYPES);
 
 function isAllowedMimeType(value: string): value is AgentAllowedMimeType {
@@ -355,7 +360,7 @@ export function useAgentChat({
         const isStale =
           existing !== undefined &&
           (existing.status !== 'running' ||
-            existing.steps.length > event.data.steps.length) &&
+            progressOf(existing) > progressOf(event.data)) &&
           event.data.status === 'running';
         if (isStale) {
           return prev;

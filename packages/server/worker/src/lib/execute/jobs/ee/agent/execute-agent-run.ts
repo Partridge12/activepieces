@@ -9,7 +9,7 @@ import { stepResultFrom } from './agent-step-result'
 import { agentToolPolicy } from './agent-tool-policy'
 import { agentWorkerTools, GateDecision, TaintState } from './agent-worker-tools'
 import { classifyAgentRunError, delayWithJitter, firstStepUsesFastModel, isTransientFailureText, runAgentTurn } from './run-agent-turn'
-import { createBuilderSubagentTools } from './tools/builder-subagent-tools'
+import { createTaskSubagentTools } from './tools/task-subagent-tools'
 
 const BATCH_SIZE = 10
 const BATCH_FLUSH_MS = 50
@@ -17,6 +17,7 @@ const APPROVAL_TIMEOUT_MS = 5 * 60 * 1_000
 const APPROVAL_BLOCK_MS = 50_000
 const DISPLAY_TOOL_TIMEOUT_MS = 5 * 60 * 1_000
 const HEARTBEAT_INTERVAL_MS = 15_000
+const MAIN_RUN_CREDIT_KEY = 'main'
 const RETRY_MAX_ATTEMPTS = 3
 const RETRY_BASE_DELAY_MS = 1_000
 // A turn quiet this long with NO tool call and NO reasoning block in flight is REPORTED as idle —
@@ -236,11 +237,7 @@ export const executeAgentRunJob: JobHandler<ExecuteAgentRunJobData, FireAndForge
                 },
             })
 
-            const creditsLeft = (pendingCredits: number) => ctx.apiClient.agentCreditsLeft({ platformId, conversationId, pendingCredits })
-            const builderTools = createBuilderSubagentTools({
-                tools: allTools, model, provider, tier: config.tier, modelId: config.modelId,
-                builderPrompt: config.guides['flow_builder'], buildGuide: config.guides['build_flow'] ?? '', creditsLeft, eventEmitter, abortSignal: abortController.signal, log,
-            })
+            const creditsLeftFor = createCreditLedger({ creditsLeft: (pendingCredits) => ctx.apiClient.agentCreditsLeft({ platformId, conversationId, pendingCredits }) })
 
             const thinkingStartTime = Date.now()
 
@@ -253,14 +250,21 @@ export const executeAgentRunJob: JobHandler<ExecuteAgentRunJobData, FireAndForge
                 skip: (dryRun ?? false) || (discoveryOnly ?? false),
                 log,
                 run: (stepMcpToolSet) => {
-                    const mergedTools = { ...allTools, ...builderTools, ...agentWorkerTools.wrapToolsWithTaint({ tools: stepMcpToolSet, taintState }) }
+                    const baseTools = { ...allTools, ...agentWorkerTools.wrapToolsWithTaint({ tools: stepMcpToolSet, taintState }) }
+                    const taskTools = createTaskSubagentTools({
+                        tools: baseTools, model, provider, tier: config.tier, modelId: config.modelId,
+                        taskPrompt: config.taskSystemPrompt, creditsLeftFor, eventEmitter, abortSignal: abortController.signal, log,
+                        beginTask: (input) => ctx.apiClient.beginAgentTask({ platformId, conversationId, ...input }),
+                        finishTask: (input) => ctx.apiClient.finishAgentTask({ platformId, conversationId, ...input }),
+                    })
+                    const mergedTools = { ...baseTools, ...taskTools }
                     const allToolNames = Object.keys(mergedTools)
                     log.info({ toolCount: allToolNames.length, mcpToolCount: Object.keys(mcpToolSet).length, phase: phaseState.phase }, '[executeAgentRun] Tool set assembled')
                     log.debug({ toolNames: allToolNames }, '[executeAgentRun] Tool set details')
 
                     return runAgentTurn({
                         ...spreadIfDefined('stepCeiling', data.maxSteps),
-                        creditsLeft,
+                        creditsLeft: creditsLeftFor(MAIN_RUN_CREDIT_KEY),
                         model,
                         fastModel: firstStepUsesFastModel({ source, dryRun, runsASavedAgent: !isNil(data.promptOverride) }) ? fastModel : undefined,
                         provider,
@@ -478,6 +482,15 @@ function incompleteReason({ truncatedAfterRetries, budgetExceeded, creditsExhaus
     return undefined
 }
 
+
+function createCreditLedger({ creditsLeft }: { creditsLeft: (pendingCredits: number) => Promise<number | null> }): (runKey: string) => (pendingCredits: number) => Promise<number | null> {
+    const pendingByRun = new Map<string, number>()
+    return (runKey) => (pendingCredits) => {
+        pendingByRun.set(runKey, pendingCredits)
+        const totalPending = [...pendingByRun.values()].reduce((sum, value) => sum + value, 0)
+        return creditsLeft(totalPending)
+    }
+}
 
 async function releaseFlowStep({ ctx, conversationId, flowRunId, waitpointId, output, source, log }: {
     ctx: JobContext
