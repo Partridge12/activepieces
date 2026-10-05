@@ -3,8 +3,8 @@ import {
   PersistedAgentMessage,
   PersistedAgentPartType,
   PersistedAgentRole,
+  mcpToolNameUtils,
 } from '@activepieces/shared';
-import { mcpToolNameUtils } from '@activepieces/shared';
 import { describe, expect, it } from 'vitest';
 
 import { AnyToolPart } from '@/features/chat/lib/chat-types';
@@ -280,5 +280,28 @@ describe('chatUtils — tool pill active/done labels', () => {
     expect(chatUtils.formatToolActionName({ part })).toBe('Generating image');
     expect(chatUtils.formatToolDoneTitle({ part })).toBe('Generated image');
     expect(chatUtils.formatToolActionName({ part })).not.toContain('mascot');
+  });
+});
+
+describe('chatUtils.withoutDashes', () => {
+  it('replaces em and en dashes in prose with natural punctuation', () => {
+    expect(
+      chatUtils.withoutDashes(
+        'Alice Chen — proposal sent 5 days ago—needs a call',
+      ),
+    ).toBe('Alice Chen, proposal sent 5 days ago, needs a call');
+  });
+
+  it('keeps number ranges readable and drops dashes that open a line', () => {
+    expect(chatUtils.withoutDashes('No activity in 3–5 days')).toBe(
+      'No activity in 3-5 days',
+    );
+    expect(chatUtils.withoutDashes('— first\n— second')).toBe('first\nsecond');
+  });
+
+  it('leaves code untouched', () => {
+    expect(
+      chatUtils.withoutDashes('Use `a — b` or\n```\nx — y\n```\nthen — done'),
+    ).toBe('Use `a — b` or\n```\nx — y\n```\nthen, done');
   });
 });
