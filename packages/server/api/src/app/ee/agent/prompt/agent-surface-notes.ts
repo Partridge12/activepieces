@@ -1,5 +1,6 @@
 import { isNil } from '@activepieces/core-utils'
 import { AgentRunSource } from '@activepieces/shared'
+import { agentPrompt } from './agent-prompt'
 import { agentUserIdentity, UserIdentity } from './agent-user-identity'
 
 function buildRunNotes({ source, messageSource, currentDate, searchAvailable, fetchAvailable, scrapeAvailable, imageAvailable, imageEditAvailable, emailAvailable, agentsAvailable, userEmail, userIdentity, connections, memory }: {
@@ -32,6 +33,7 @@ function buildRunNotes({ source, messageSource, currentDate, searchAvailable, fe
             userEmail,
         })
         + (isChat && agentsAvailable ? AGENTS_NOTE : '')
+        + (isChat ? `\n\n${agentPrompt.subagentsNote}` : '')
         + (isChat && !isNil(connections) ? buildConnectionInventoryNote(connections) : '')
         + (isChat ? buildMemoryNote(memory) : '')
         + (isChat && messageSource === 'onboarding' ? ONBOARDING_FIRST_MESSAGE_NOTE : '')

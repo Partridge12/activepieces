@@ -16,9 +16,12 @@ const PROMPT_TEMPLATES = {
     noProject: loadPromptTemplate('chat-project-context-none.md'),
 }
 
-const GUIDES: Record<string, string> = Object.fromEntries(
-    GUIDE_TOPICS.map((topic) => [topic, loadPromptTemplate(`guides/${topic}.md`)]),
-)
+const GUIDES: Record<string, string> = {
+    ...Object.fromEntries(GUIDE_TOPICS.map((topic) => [topic, loadPromptTemplate(`guides/${topic}.md`)])),
+    flow_builder: loadPromptTemplate('flow-builder-prompt.md'),
+}
+
+const SUBAGENTS_NOTE = loadPromptTemplate('chat-subagents-note.md').trim()
 
 function sanitizeProjectName(name: string): string {
     return name.replace(/[^a-zA-Z0-9 \-_.]/g, '').slice(0, 64)
@@ -100,6 +103,7 @@ export const agentPrompt = {
     buildSystemPrompt: buildAgentSystemPrompt,
     buildBuilderSystemPrompt,
     guides: GUIDES,
+    subagentsNote: SUBAGENTS_NOTE,
     projectDisplayName,
     sources: {
         ...PROMPT_TEMPLATES,

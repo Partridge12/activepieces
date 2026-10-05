@@ -10,6 +10,7 @@ const ALL = [
     'ap_validate_flow',
     'ap_show_questions',
     'ap_build_flow',
+    'ap_build_flow_in_subagent',
     'ap_add_step',
     'ap_test_flow',
     'ap_lock_and_publish',
@@ -23,6 +24,7 @@ describe('agentToolPhases.activeToolsForPhase', () => {
         expect(active).toContain('ap_explore_data')
         expect(active).toContain('ap_show_questions')
         expect(active).not.toContain('ap_build_flow')
+        expect(active).not.toContain('ap_build_flow_in_subagent')
         expect(active).not.toContain('ap_add_step')
         expect(active).not.toContain('ap_test_flow')
         expect(active).not.toContain('ap_lock_and_publish')

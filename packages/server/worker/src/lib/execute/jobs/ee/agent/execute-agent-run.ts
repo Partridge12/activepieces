@@ -9,6 +9,7 @@ import { stepResultFrom } from './agent-step-result'
 import { agentToolPolicy } from './agent-tool-policy'
 import { agentWorkerTools, GateDecision, TaintState } from './agent-worker-tools'
 import { classifyAgentRunError, delayWithJitter, firstStepUsesFastModel, isTransientFailureText, runAgentTurn } from './run-agent-turn'
+import { createBuilderSubagentTools } from './tools/builder-subagent-tools'
 
 const BATCH_SIZE = 10
 const BATCH_FLUSH_MS = 50
@@ -235,6 +236,12 @@ export const executeAgentRunJob: JobHandler<ExecuteAgentRunJobData, FireAndForge
                 },
             })
 
+            const creditsLeft = (pendingCredits: number) => ctx.apiClient.agentCreditsLeft({ platformId, conversationId, pendingCredits })
+            const builderTools = createBuilderSubagentTools({
+                tools: allTools, model, provider, tier: config.tier, modelId: config.modelId,
+                builderPrompt: config.guides['flow_builder'], buildGuide: config.guides['build_flow'] ?? '', creditsLeft, abortSignal: abortController.signal, log,
+            })
+
             const thinkingStartTime = Date.now()
 
             const autoTitlePromise = generateTitleIfFirstTurn({
@@ -246,14 +253,14 @@ export const executeAgentRunJob: JobHandler<ExecuteAgentRunJobData, FireAndForge
                 skip: (dryRun ?? false) || (discoveryOnly ?? false),
                 log,
                 run: (stepMcpToolSet) => {
-                    const mergedTools = { ...allTools, ...agentWorkerTools.wrapToolsWithTaint({ tools: stepMcpToolSet, taintState }) }
+                    const mergedTools = { ...allTools, ...builderTools, ...agentWorkerTools.wrapToolsWithTaint({ tools: stepMcpToolSet, taintState }) }
                     const allToolNames = Object.keys(mergedTools)
                     log.info({ toolCount: allToolNames.length, mcpToolCount: Object.keys(mcpToolSet).length, phase: phaseState.phase }, '[executeAgentRun] Tool set assembled')
                     log.debug({ toolNames: allToolNames }, '[executeAgentRun] Tool set details')
 
                     return runAgentTurn({
                         ...spreadIfDefined('stepCeiling', data.maxSteps),
-                        creditsLeft: (pendingCredits) => ctx.apiClient.agentCreditsLeft({ platformId, conversationId, pendingCredits }),
+                        creditsLeft,
                         model,
                         fastModel: firstStepUsesFastModel({ source, dryRun, runsASavedAgent: !isNil(data.promptOverride) }) ? fastModel : undefined,
                         provider,
