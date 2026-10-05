@@ -35,7 +35,7 @@ describe('createBuilderSubagentTools', () => {
         expect(events[0]).toMatchObject({ toolCallId: 'call-1', data: { flowName: 'Save order', status: 'running', steps: [] } })
         expect(events[events.length - 1]).toMatchObject({
             toolCallId: 'call-1',
-            data: { status: 'done', report: 'Built "Save order" (flowId f1, externalId e1). ✅ valid.', steps: [{ id: 't1', toolName: 'ap_build_flow', status: 'done', summary: '✅ Flow "Save order" created' }, { id: 't2', toolName: 'ap_validate_flow', status: 'failed', summary: '❌ Flow not found.' }] },
+            data: { status: 'done', pieces: ['@activepieces/piece-subflows', '@activepieces/piece-ai'], report: 'Built "Save order" (flowId f1, externalId e1). ✅ valid.', steps: [{ id: 't1', toolName: 'ap_build_flow', status: 'done', summary: '✅ Flow "Save order" created' }, { id: 't2', toolName: 'ap_validate_flow', status: 'failed', summary: '❌ Flow not found.' }] },
         })
     })
 
@@ -62,7 +62,7 @@ function toolSet(names: string[]): ToolSet {
 function turnResult({ texts }: { texts: string[] }): Record<string, unknown> {
     return {
         uiParts: [
-            { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't1', toolName: 'ap_build_flow', input: {}, status: PersistedToolCallStatus.COMPLETED, output: { content: [{ type: 'text', text: '✅ Flow "Save order" created\nOpen: http://x' }] } },
+            { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't1', toolName: 'ap_build_flow', input: { trigger: { pieceName: '@activepieces/piece-subflows' }, steps: [{ pieceName: '@activepieces/piece-ai' }, { pieceName: '@activepieces/piece-subflows' }] }, status: PersistedToolCallStatus.COMPLETED, output: { content: [{ type: 'text', text: '✅ Flow "Save order" created\nOpen: http://x' }] } },
             { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 't2', toolName: 'ap_validate_flow', input: {}, status: PersistedToolCallStatus.ERROR, output: '❌ Flow not found.' },
             ...texts.map((text) => ({ type: PersistedAgentPartType.TEXT, text })),
         ],

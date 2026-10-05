@@ -44,7 +44,7 @@ export function createBuilderSubagentTools({ tools, model, provider, tier, model
                     log,
                     creditsLeft,
                     sinks: {
-                        onProgress: ({ uiParts }) => report({ flowName, status: 'running', steps: stepsFrom(uiParts), startedAt: startedAt.toISOString() }),
+                        onProgress: ({ uiParts }) => report({ flowName, status: 'running', steps: stepsFrom(uiParts), pieces: piecesFrom(uiParts), startedAt: startedAt.toISOString() }),
                     },
                 })
                 const result = builderResult({ flowName, turn, startedAt })
@@ -73,6 +73,7 @@ function builderResult({ flowName, turn, startedAt }: { flowName: string, turn: 
             flowName,
             status: finishedEarly || lastMessage.length === 0 ? 'failed' : 'done',
             steps: stepsFrom(turn.uiParts),
+            pieces: piecesFrom(turn.uiParts),
             startedAt: startedAt.toISOString(),
             durationMs: Date.now() - startedAt.getTime(),
             report,
@@ -84,6 +85,21 @@ function stepsFrom(parts: PersistedAgentPart[]): SubagentStep[] {
     return parts.flatMap((part): SubagentStep[] => part.type === PersistedAgentPartType.TOOL_CALL
         ? [{ id: part.toolCallId, toolName: part.toolName, status: part.status === PersistedToolCallStatus.ERROR ? 'failed' : 'done', summary: firstLine(part.output) }]
         : [])
+}
+
+function piecesFrom(parts: PersistedAgentPart[]): string[] {
+    const names = parts.flatMap((part) => part.type === PersistedAgentPartType.TOOL_CALL && PIECE_WRITING_TOOLS.includes(part.toolName) ? pieceNamesIn(part.input) : [])
+    return [...new Set(names)]
+}
+
+function pieceNamesIn(input: unknown): string[] {
+    if (!isObject(input)) {
+        return []
+    }
+    const own = typeof input['pieceName'] === 'string' ? [input['pieceName']] : []
+    const trigger = pieceNamesIn(input['trigger'])
+    const steps = Array.isArray(input['steps']) ? input['steps'].flatMap(pieceNamesIn) : []
+    return [...trigger, ...own, ...steps]
 }
 
 function firstLine(output: unknown): string {
@@ -119,6 +135,7 @@ const builderInput = z.object({
 const BUILDER_TOOL_NAME = 'ap_build_flow_in_subagent'
 const BUILD_TOOL_NAME = 'ap_build_flow'
 const SUMMARY_MAX_LENGTH = 120
+const PIECE_WRITING_TOOLS = ['ap_build_flow', 'ap_add_step', 'ap_update_step', 'ap_update_trigger']
 
 const BUILDER_TOOL_NAMES = [
     'ap_research_pieces',

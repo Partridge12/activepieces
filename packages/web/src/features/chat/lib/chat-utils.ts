@@ -594,7 +594,6 @@ function newChatModelName({
 }
 
 export const chatUtils = {
-  labelForToolName: labelForRawToolName,
   newChatEvent: 'ap:new-chat',
   newChatModelName,
   reopensSameConversation,

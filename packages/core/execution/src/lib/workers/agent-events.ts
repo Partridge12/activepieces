@@ -103,6 +103,7 @@ export type SubagentActivity = {
     flowName: string
     status: 'running' | 'done' | 'failed'
     steps: SubagentStep[]
+    pieces?: string[]
     startedAt: string
     durationMs?: number
     report?: string
