@@ -6,6 +6,7 @@ import {
   BuildPlanEvent,
   FileProducedEvent,
   ImageGeneratedEvent,
+  SubagentActivity,
 } from '@activepieces/shared';
 import { StoreApi, create } from 'zustand';
 
@@ -49,6 +50,7 @@ export type ToolCallMeta = {
   actionReceipt?: ActionReceiptEvent;
   image?: ImageGeneratedEvent;
   files?: FileProducedEvent[];
+  subagent?: SubagentActivity;
 };
 
 export type BuildState = BuildPlanEvent;

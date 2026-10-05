@@ -9,6 +9,7 @@ export enum AgentEventType {
     IMAGE = 'IMAGE',
     FILE = 'FILE',
     BUILD_PLAN = 'BUILD_PLAN',
+    SUBAGENT_PROGRESS = 'SUBAGENT_PROGRESS',
 }
 
 export type ToolProgressEvent = {
@@ -91,6 +92,27 @@ export type BuildPlanEvent = {
     updatedAt: string
 }
 
+export type SubagentStep = {
+    id: string
+    toolName: string
+    status: 'done' | 'failed'
+    summary: string
+}
+
+export type SubagentActivity = {
+    flowName: string
+    status: 'running' | 'done' | 'failed'
+    steps: SubagentStep[]
+    startedAt: string
+    durationMs?: number
+    report?: string
+}
+
+export type SubagentProgressEvent = {
+    toolCallId: string
+    data: SubagentActivity
+}
+
 export type AgentEvent =
     | { type: AgentEventType.CHUNK, data: unknown }
     | { type: AgentEventType.FINISHED, data: { conversationId: string } }
@@ -102,3 +124,4 @@ export type AgentEvent =
     | { type: AgentEventType.IMAGE, data: ImageGeneratedEvent }
     | { type: AgentEventType.FILE, data: FileProducedEvent }
     | { type: AgentEventType.BUILD_PLAN, data: BuildPlanEvent }
+    | { type: AgentEventType.SUBAGENT_PROGRESS, data: SubagentProgressEvent }

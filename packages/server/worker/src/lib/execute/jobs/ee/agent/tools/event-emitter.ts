@@ -1,5 +1,5 @@
 import { tryCatch } from '@activepieces/core-utils'
-import { ActionPreviewEvent, ActionReceiptEvent, AgentEventType, BuildPlanEvent, FileProducedEvent, ImageGeneratedEvent, SendAgentEventRequest, ToolProgressEvent } from '@activepieces/shared'
+import { ActionPreviewEvent, ActionReceiptEvent, AgentEventType, BuildPlanEvent, FileProducedEvent, ImageGeneratedEvent, SendAgentEventRequest, SubagentProgressEvent, ToolProgressEvent } from '@activepieces/shared'
 import { AgentEventEmitter } from './tool-primitives'
 
 export function createEventEmitter({ sendEvent, userId, conversationId, log }: {
@@ -58,6 +58,12 @@ export function createEventEmitter({ sendEvent, userId, conversationId, log }: {
                 event: { type: AgentEventType.BUILD_PLAN, data },
                 maxAttempts: 2,
             })
+        },
+        emitSubagentProgress(data: SubagentProgressEvent): void {
+            sendWithRetry({
+                event: { type: AgentEventType.SUBAGENT_PROGRESS, data },
+                maxAttempts: 2,
+            }).catch(() => undefined)
         },
     }
 }

@@ -52,6 +52,10 @@ const TOOL_LABELS: Record<string, { active: string; done: string }> = {
     done: 'Searched integrations',
   },
   ap_build_flow: { active: 'Building automation', done: 'Built automation' },
+  ap_build_flow_in_subagent: {
+    active: 'Builder working',
+    done: 'Builder finished',
+  },
   ap_create_flow: { active: 'Creating automation', done: 'Created automation' },
   ap_validate_step_config: {
     active: 'Validating setup',
@@ -590,6 +594,7 @@ function newChatModelName({
 }
 
 export const chatUtils = {
+  labelForToolName: labelForRawToolName,
   newChatEvent: 'ap:new-chat',
   newChatModelName,
   reopensSameConversation,

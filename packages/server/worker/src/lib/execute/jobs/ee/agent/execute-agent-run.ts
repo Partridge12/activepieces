@@ -239,7 +239,7 @@ export const executeAgentRunJob: JobHandler<ExecuteAgentRunJobData, FireAndForge
             const creditsLeft = (pendingCredits: number) => ctx.apiClient.agentCreditsLeft({ platformId, conversationId, pendingCredits })
             const builderTools = createBuilderSubagentTools({
                 tools: allTools, model, provider, tier: config.tier, modelId: config.modelId,
-                builderPrompt: config.guides['flow_builder'], buildGuide: config.guides['build_flow'] ?? '', creditsLeft, abortSignal: abortController.signal, log,
+                builderPrompt: config.guides['flow_builder'], buildGuide: config.guides['build_flow'] ?? '', creditsLeft, eventEmitter, abortSignal: abortController.signal, log,
             })
 
             const thinkingStartTime = Date.now()

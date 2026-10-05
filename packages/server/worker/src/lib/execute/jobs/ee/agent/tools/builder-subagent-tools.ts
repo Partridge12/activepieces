@@ -1,10 +1,11 @@
-import { AIProviderName, isNil } from '@activepieces/core-utils'
-import { PersistedAgentPart, PersistedAgentPartType } from '@activepieces/shared'
+import { AIProviderName, isNil, isObject } from '@activepieces/core-utils'
+import { PersistedAgentPart, PersistedAgentPartType, PersistedToolCallStatus, SubagentActivity, SubagentStep } from '@activepieces/shared'
 import { LanguageModel, tool, ToolSet } from 'ai'
 import { z } from 'zod'
 import { AgentTurnResult, runAgentTurn, RunAgentTurnParams } from '../run-agent-turn'
+import { AgentEventEmitter } from './tool-primitives'
 
-export function createBuilderSubagentTools({ tools, model, provider, tier, modelId, builderPrompt, buildGuide, creditsLeft, abortSignal, log }: {
+export function createBuilderSubagentTools({ tools, model, provider, tier, modelId, builderPrompt, buildGuide, creditsLeft, eventEmitter, abortSignal, log }: {
     tools: ToolSet
     model: LanguageModel
     provider: AIProviderName
@@ -13,6 +14,7 @@ export function createBuilderSubagentTools({ tools, model, provider, tier, model
     builderPrompt: string | undefined
     buildGuide: string
     creditsLeft: RunAgentTurnParams['creditsLeft']
+    eventEmitter: AgentEventEmitter
     abortSignal: AbortSignal
     log: RunAgentTurnParams['log']
 }): ToolSet {
@@ -24,7 +26,10 @@ export function createBuilderSubagentTools({ tools, model, provider, tier, model
         [BUILDER_TOOL_NAME]: tool({
             description: 'Hand one flow of a solution to a builder that works in its own context and returns a short report (flowId, externalId, steps, validation, open issues). Call it several times in the same step to build independent flows in parallel. The brief must be self-contained: the builder sees nothing of this conversation.',
             inputSchema: builderInput,
-            execute: async ({ flowName, brief, flowId }) => {
+            execute: async ({ flowName, brief, flowId }, { toolCallId }) => {
+                const startedAt = new Date()
+                const report = (activity: SubagentActivity) => eventEmitter.emitSubagentProgress({ toolCallId, data: activity })
+                report({ flowName, status: 'running', steps: [], startedAt: startedAt.toISOString() })
                 const turn = await runAgentTurn({
                     model,
                     provider,
@@ -38,8 +43,13 @@ export function createBuilderSubagentTools({ tools, model, provider, tier, model
                     abortSignal,
                     log,
                     creditsLeft,
+                    sinks: {
+                        onProgress: ({ uiParts }) => report({ flowName, status: 'running', steps: stepsFrom(uiParts), startedAt: startedAt.toISOString() }),
+                    },
                 })
-                return builderReport({ flowName, turn })
+                const result = builderResult({ flowName, turn, startedAt })
+                report(result.activity)
+                return result
             },
         }),
     }
@@ -50,15 +60,49 @@ function builderTask({ flowName, brief, flowId }: { flowName: string, brief: str
     return `${target}\n\n${brief}`
 }
 
-function builderReport({ flowName, turn }: { flowName: string, turn: AgentTurnResult }): { flowName: string, report: string, toolCalls: number, finishedEarly: boolean } {
+function builderResult({ flowName, turn, startedAt }: { flowName: string, turn: AgentTurnResult, startedAt: Date }): BuilderResult {
     const finishedEarly = turn.streamError !== null || turn.creditsExhausted || turn.budgetExceeded || turn.truncatedAfterRetries
-    const report = lastText(turn.uiParts)
+    const lastMessage = lastText(turn.uiParts)
+    const report = lastMessage.length > 0 ? lastMessage : 'The builder stopped without a report. Check the flow with ap_validate_flow before relying on it.'
     return {
         flowName,
-        report: report.length > 0 ? report : 'The builder stopped without a report. Check the flow with ap_validate_flow before relying on it.',
+        report,
         toolCalls: turn.toolCalls.length,
         finishedEarly,
+        activity: {
+            flowName,
+            status: finishedEarly || lastMessage.length === 0 ? 'failed' : 'done',
+            steps: stepsFrom(turn.uiParts),
+            startedAt: startedAt.toISOString(),
+            durationMs: Date.now() - startedAt.getTime(),
+            report,
+        },
     }
+}
+
+function stepsFrom(parts: PersistedAgentPart[]): SubagentStep[] {
+    return parts.flatMap((part): SubagentStep[] => part.type === PersistedAgentPartType.TOOL_CALL
+        ? [{ id: part.toolCallId, toolName: part.toolName, status: part.status === PersistedToolCallStatus.ERROR ? 'failed' : 'done', summary: firstLine(part.output) }]
+        : [])
+}
+
+function firstLine(output: unknown): string {
+    const text = outputText(output).trim().split('\n')[0] ?? ''
+    return text.length > SUMMARY_MAX_LENGTH ? `${text.slice(0, SUMMARY_MAX_LENGTH)}…` : text
+}
+
+function outputText(output: unknown): string {
+    if (typeof output === 'string') {
+        return output
+    }
+    if (!isObject(output)) {
+        return ''
+    }
+    const content = output['content']
+    if (Array.isArray(content)) {
+        return content.map((item) => isObject(item) && typeof item['text'] === 'string' ? item['text'] : '').join(' ')
+    }
+    return typeof output['text'] === 'string' ? output['text'] : ''
 }
 
 function lastText(parts: PersistedAgentPart[]): string {
@@ -74,6 +118,7 @@ const builderInput = z.object({
 
 const BUILDER_TOOL_NAME = 'ap_build_flow_in_subagent'
 const BUILD_TOOL_NAME = 'ap_build_flow'
+const SUMMARY_MAX_LENGTH = 120
 
 const BUILDER_TOOL_NAMES = [
     'ap_research_pieces',
@@ -98,3 +143,10 @@ const BUILDER_TOOL_NAMES = [
     'ap_validate_flow',
 ]
 
+type BuilderResult = {
+    flowName: string
+    report: string
+    toolCalls: number
+    finishedEarly: boolean
+    activity: SubagentActivity
+}
