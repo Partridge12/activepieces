@@ -73,7 +73,7 @@ export function createAgentSurfaceTools({ executeTool, taintState, eventEmitter,
         }),
 
         ap_add_agent_tool: tool({
-            description: 'Give a saved agent piece actions it can call, so it can do the work rather than only reason about it. Look them up first (ap_research_pieces for the piece and action names, ap_list_connections for the connection). Pass every action for one piece in a single call — one call per piece, never several at once for the same agent.',
+            description: 'Give a saved agent piece actions it can call, so it can do the work rather than only reason about it. Look them up first (ap_research_pieces for the piece and action names, ap_list_connections for the connection). Pass every action for one piece in a single call, one call per piece, never several at once for the same agent.',
             inputSchema: z.object({
                 agentId: z.string().optional().describe('The id returned by ap_list_agents, ap_create_agent or ap_update_agent. Leave it out when you are changing the agent this conversation belongs to'),
                 pieceName: z.string().describe('Full piece name, e.g. "@activepieces/piece-gmail"'),
@@ -100,7 +100,7 @@ export function createAgentSurfaceTools({ executeTool, taintState, eventEmitter,
         }),
 
         ap_update_agent: tool({
-            description: 'Change a saved agent\'s name, description or instructions, and publish it. Send the full new instructions, not a diff — they replace what is there. Pass publish: true whenever the user wants the result live, including when they only ask you to publish and change nothing else.',
+            description: 'Change a saved agent\'s name, description or instructions, and publish it. Send the full new instructions, not a diff, they replace what is there. Pass publish: true whenever the user wants the result live, including when they only ask you to publish and change nothing else.',
             inputSchema: z.object({
                 agentId: z.string().optional().describe('The id returned by ap_list_agents or ap_create_agent. Leave it out when you are changing the agent this conversation belongs to'),
                 displayName: z.string().optional(),
@@ -148,12 +148,12 @@ export function createBuildPlanTools({ eventEmitter, getProjectId }: {
     const buildId = apId()
     return {
         ap_set_build_plan: tool({
-            description: 'Publish and maintain the live build plan shown to the user as a single contained, celebratory build card (silent, internal — no thinking status).\n\nUSE THIS ONLY when building a brand-new, multi-step recurring automation (a flow with a trigger + steps the user will keep) — i.e. you are actively going through the build_flow guide. That is the ONLY valid trigger.\n\nDo NOT call it for anything else: a one-time "do it now" task (the one_time_task path — running/sending/cleaning/scoring now), a single quick action or lookup, answering or explaining something, exploring/reading data, or a small tweak / rename / status change / single-step edit to an existing automation. If you are not actively running build_flow to construct a new automation, do NOT call this tool — there should be no card.\n\nWhen it applies: call it ONCE the moment you commit to the build, BEFORE constructing anything, with phase "detecting", a bold celebratory tagline, and the full list of steps you intend to build (all status "pending"). Then call it again to patch the plan as you work: set a step to "in_progress" before you build it and "done" after it validates. Set flowId as soon as ap_create_flow or ap_build_flow returns it. Use phase "building" while constructing, "testing" while running test cases, and finally "done" with the flowId once the automation is built and verified — this reveals the Open / Test / Run actions. Reuse the same step ids and the same tagline across calls so the card updates in place instead of resetting.',
+            description: 'Publish and maintain the live build plan shown to the user as a single contained, celebratory build card (silent, internal, no thinking status).\n\nUSE THIS ONLY when building a brand-new, multi-step recurring automation (a flow with a trigger + steps the user will keep), i.e. you are actively going through the build_flow guide. That is the ONLY valid trigger.\n\nDo NOT call it for anything else: a one-time "do it now" task (the one_time_task path, running/sending/cleaning/scoring now), a single quick action or lookup, answering or explaining something, exploring/reading data, or a small tweak / rename / status change / single-step edit to an existing automation. If you are not actively running build_flow to construct a new automation, do NOT call this tool, there should be no card.\n\nWhen it applies: call it ONCE the moment you commit to the build, BEFORE constructing anything, with phase "detecting", a bold celebratory tagline, and the full list of steps you intend to build (all status "pending"). Then call it again to patch the plan as you work: set a step to "in_progress" before you build it and "done" after it validates. Set flowId as soon as ap_create_flow or ap_build_flow returns it. Use phase "building" while constructing, "testing" while running test cases, and finally "done" with the flowId once the automation is built and verified, this reveals the Open / Test / Run actions. Reuse the same step ids and the same tagline across calls so the card updates in place instead of resetting.',
             inputSchema: z.object({
                 phase: z.enum(['detecting', 'building', 'testing', 'done', 'failed']).describe('"detecting" = just decided to build (celebrate); "building" = constructing steps; "testing" = running test cases; "done" = built & verified; "failed" = gave up'),
                 flowName: z.string().describe('Human-readable automation name shown on the card'),
-                tagline: z.string().describe('A big, bold, fun marketing-style headline about the specific manual work this automation kills — casual and celebratory, max ~7 words, no period. Make it about THIS user\'s task, not generic. E.g. "Say goodbye to copy-pasting leads", "No more chasing invoices by hand", "Never sort support emails again". Reuse the same tagline across updates.'),
-                iconName: z.string().describe(`The single icon that best represents this automation's business case, shown as a playful doodle on the card. Pick the closest match to the task — e.g. mail/email triage, dollar-sign or credit-card for invoices/payments, users for CRM/leads, calendar or calendar-clock for scheduling, bot for AI work, bar-chart or pie-chart for reporting, truck or package for logistics/orders, message-square for chat/Slack, file-text for documents, bell for alerts. Reuse the same iconName across updates. Allowed names: ${QUESTION_ICON_NAMES}`),
+                tagline: z.string().describe('A big, bold, fun marketing-style headline about the specific manual work this automation kills, casual and celebratory, max ~7 words, no period. Make it about THIS user\'s task, not generic. E.g. "Say goodbye to copy-pasting leads", "No more chasing invoices by hand", "Never sort support emails again". Reuse the same tagline across updates.'),
+                iconName: z.string().describe(`The single icon that best represents this automation's business case, shown as a playful doodle on the card. Pick the closest match to the task, e.g. mail/email triage, dollar-sign or credit-card for invoices/payments, users for CRM/leads, calendar or calendar-clock for scheduling, bot for AI work, bar-chart or pie-chart for reporting, truck or package for logistics/orders, message-square for chat/Slack, file-text for documents, bell for alerts. Reuse the same iconName across updates. Allowed names: ${QUESTION_ICON_NAMES}`),
                 flowId: z.string().optional().describe('The flow id; set it as soon as ap_create_flow / ap_build_flow returns it. Required when phase is "done" so the Open / Test / Run actions work.'),
                 steps: z.array(z.object({
                     id: z.string().describe('Stable id you reuse across updates, e.g. "trigger", "classify", "route"'),
@@ -186,13 +186,13 @@ export function createPhaseTools({ onPhaseChange }: {
     let lastPhase: AgentPhase | null = null
     return {
         ap_set_phase: tool({
-            description: 'Switch your working phase (silent, internal — no thinking status). Start in "discovery" (understanding the goal, reading data). Call this with "build" the moment you begin constructing, editing, testing, or running an automation — e.g. right after you load the build_flow or one_time_task guide. This unlocks the build/execution tools.',
+            description: 'Switch your working phase (silent, internal, no thinking status). Start in "discovery" (understanding the goal, reading data). Call this with "build" the moment you begin constructing, editing, testing, or running an automation, e.g. right after you load the build_flow or one_time_task guide. This unlocks the build/execution tools.',
             inputSchema: z.object({
                 phase: z.enum(['discovery', 'build']).describe('"discovery" while scoping/reading; "build" once you start building or executing'),
             }),
             execute: async (input) => {
                 if (lastPhase === input.phase) {
-                    return { phase: input.phase, note: 'Already in this phase — no change.' }
+                    return { phase: input.phase, note: 'Already in this phase, no change.' }
                 }
                 lastPhase = input.phase
                 onPhaseChange(input.phase)

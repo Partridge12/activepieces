@@ -35,7 +35,7 @@ function buildProjectListBlock({ projects, frontendUrl }: {
     if (projects.length === 0) return 'No projects available.'
     return projects.map((p) => {
         const url = `${frontendUrl}/projects/${p.id}`
-        return `- **${sanitizeProjectName(projectDisplayName(p))}** (ID: ${p.id}) — [Open](${url})`
+        return `- **${sanitizeProjectName(projectDisplayName(p))}** (ID: ${p.id}), [Open](${url})`
     }).join('\n')
 }
 

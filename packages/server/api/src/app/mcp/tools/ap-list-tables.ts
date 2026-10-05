@@ -42,7 +42,7 @@ export const apListTablesTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLo
                     const fields = fieldsByTable.get(table.id) ?? []
                     const rowCount = table.rowCount ?? 0
                     const fieldLines = fields.map(f => `    - ${formatFieldInfo(f)}`).join('\n')
-                    return `- ${table.name} (id: ${table.id}, externalId: ${table.externalId}) — ${rowCount} records\n  Fields:\n${fieldLines}`
+                    return `- ${table.name} (id: ${table.id}, externalId: ${table.externalId}), ${rowCount} records\n  Fields:\n${fieldLines}`
                 })
 
                 const structured = {

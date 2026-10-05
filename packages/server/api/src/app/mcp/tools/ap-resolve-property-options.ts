@@ -62,8 +62,8 @@ export const apResolvePropertyOptionsTool = (mcp: ProjectScopedMcpServer, log: F
                     const requiresAuth = !isNil(piece.auth)
                     const emptyReason = requiresAuth
                         ? (isNil(auth) || auth.trim().length === 0
-                            ? `⚠️ No options for "${propertyName}" — this dropdown loads from a connected account but no connection was passed. Pass the connectionExternalId from ap_show_connection_picker as \`auth\` and retry. Only treat this as "no items" once a valid connection is attached.`
-                            : `⚠️ No options for "${propertyName}". This usually means the connection is wrong/expired or a parent field is unresolved — confirm \`auth\` is the exact connectionExternalId from ap_show_connection_picker and that any parent inputs are set, then retry. If the account genuinely has no items, you may use the user's value directly (the dropdown will appear unset).`)
+                            ? `⚠️ No options for "${propertyName}", this dropdown loads from a connected account but no connection was passed. Pass the connectionExternalId from ap_show_connection_picker as \`auth\` and retry. Only treat this as "no items" once a valid connection is attached.`
+                            : `⚠️ No options for "${propertyName}". This usually means the connection is wrong/expired or a parent field is unresolved, confirm \`auth\` is the exact connectionExternalId from ap_show_connection_picker and that any parent inputs are set, then retry. If the account genuinely has no items, you may use the user's value directly (the dropdown will appear unset).`)
                         : `⚠️ No options found for "${propertyName}". The account may have no items. You may use the value the user provided directly, but the dropdown in the flow editor will appear unset.`
                     return {
                         content: [{ type: 'text', text: emptyReason }],
@@ -79,7 +79,7 @@ export const apResolvePropertyOptionsTool = (mcp: ProjectScopedMcpServer, log: F
             const failureDetail = result.status === 'failed' ? `: ${result.message}` : ''
             log.warn({ propertyName, result }, 'ap_resolve_property_options: could not resolve options')
             return {
-                content: [{ type: 'text', text: `⚠️ Could not resolve options for "${propertyName}"${failureDetail}. You may use the value the user provided directly — it may work at runtime. However, the dropdown in the flow editor will appear unset. Mention this to the user.` }],
+                content: [{ type: 'text', text: `⚠️ Could not resolve options for "${propertyName}"${failureDetail}. You may use the value the user provided directly, it may work at runtime. However, the dropdown in the flow editor will appear unset. Mention this to the user.` }],
             }
         },
     }
@@ -90,7 +90,7 @@ const resolvePropertyOptionsInput = z.object({
     actionOrTriggerName: z.string().describe('The action or trigger name (e.g. "send_channel_message").'),
     type: z.enum(['action', 'trigger']).describe('Whether this is an action or trigger.'),
     propertyName: z.string().describe('The exact property name to resolve options for (e.g. "channel").'),
-    auth: z.string().optional().describe('Connection externalId. Required for pieces that resolve options from a connected account (e.g. Slack channels, Gmail labels). Omit for pieces that have no auth (e.g. Tables table_id) — passing a value there is unnecessary.'),
+    auth: z.string().optional().describe('Connection externalId. Required for pieces that resolve options from a connected account (e.g. Slack channels, Gmail labels). Omit for pieces that have no auth (e.g. Tables table_id), passing a value there is unnecessary.'),
     input: z.record(z.string(), z.unknown()).optional().describe('Values for parent properties that this field depends on (refreshers).'),
     searchValue: z.string().optional().describe('Search/filter term to narrow results for large dropdown lists (e.g., "sales" to find sales-related channels).'),
 })

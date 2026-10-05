@@ -8,7 +8,7 @@ import { resolveFieldNamesForTable, resolveInternalTableId, tableNotFoundError }
 
 const insertRecordsInput = z.object({
     tableId: z.string().describe('The table ID (the "id" from ap_list_tables; the externalId is also accepted)'),
-    records: z.array(z.record(z.string(), z.string())).min(1).max(50).describe('Array of records (1–50). Each record maps field names to values. Example: [{"Name": "Alice", "Age": "30"}]'),
+    records: z.array(z.record(z.string(), z.string())).min(1).max(50).describe('Array of records (1-50). Each record maps field names to values. Example: [{"Name": "Alice", "Age": "30"}]'),
 })
 
 export const apInsertRecordsTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLogger): McpToolDefinition => {

@@ -99,7 +99,7 @@ async function connectionGuide(mcp: ProjectScopedMcpServer, log: FastifyBaseLogg
                 '1. Open your Activepieces dashboard',
                 '2. Go to Settings → Connections → "+ New Connection"',
                 `3. Select "${piece.displayName}"`,
-                '4. Click "Connect" — an OAuth popup will open',
+                '4. Click "Connect", an OAuth popup will open',
                 '5. Log in and authorize access',
                 '6. The connection will be saved automatically',
             )
@@ -168,7 +168,7 @@ function formatAuthSteps({ auth, displayName }: { auth: Record<string, unknown>,
     const steps: string[] = []
     switch (auth.type) {
         case PropertyType.OAUTH2:
-            steps.push(`1. Go to Settings → Connections → "+ New Connection" → "${displayName}"`, '2. Click "Connect" — OAuth popup opens', '3. Log in and authorize')
+            steps.push(`1. Go to Settings → Connections → "+ New Connection" → "${displayName}"`, '2. Click "Connect", OAuth popup opens', '3. Log in and authorize')
             break
         case PropertyType.SECRET_TEXT:
             steps.push(`1. Go to Settings → Connections → "+ New Connection" → "${displayName}"`, `2. Enter your API key${'description' in auth && auth.description ? ` (${auth.description})` : ''}`, '3. Click Save')
@@ -215,11 +215,11 @@ async function aiProviderGuide(mcp: ProjectScopedMcpServer, log: FastifyBaseLogg
         '4. Select a provider and enter your API key:',
         '',
         'Supported providers:',
-        `  - ${AIProviderName.OPENAI} — requires API key from platform.openai.com`,
-        `  - ${AIProviderName.ANTHROPIC} — requires API key from console.anthropic.com`,
-        `  - ${AIProviderName.GOOGLE} — requires API key from aistudio.google.com`,
-        `  - ${AIProviderName.AZURE} — requires API key + resource name`,
-        `  - ${AIProviderName.OPENROUTER} — requires API key from openrouter.ai`,
+        `  - ${AIProviderName.OPENAI}, requires API key from platform.openai.com`,
+        `  - ${AIProviderName.ANTHROPIC}, requires API key from console.anthropic.com`,
+        `  - ${AIProviderName.GOOGLE}, requires API key from aistudio.google.com`,
+        `  - ${AIProviderName.AZURE}, requires API key + resource name`,
+        `  - ${AIProviderName.OPENROUTER}, requires API key from openrouter.ai`,
         '',
         '5. Click Save',
         '',

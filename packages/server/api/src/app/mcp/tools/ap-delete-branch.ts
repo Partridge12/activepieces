@@ -46,7 +46,7 @@ export const apDeleteBranchTool = ({ mcp, userId }: McpToolContext, log: Fastify
                 return {
                     content: [{
                         type: 'text',
-                        text: `❌ branchIndex ${branchIndex} is out of range. Valid indices are 0–${branches.length - 2} (the fallback branch at index ${branches.length - 1} cannot be deleted).`,
+                        text: `❌ branchIndex ${branchIndex} is out of range. Valid indices are 0-${branches.length - 2} (the fallback branch at index ${branches.length - 1} cannot be deleted).`,
                     }],
                 }
             }

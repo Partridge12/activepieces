@@ -153,7 +153,7 @@ export const apResolvePropertyChainTool = (mcp: ProjectScopedMcpServer, log: Fas
                     if (rp.resolved) {
                         return `✅ ${rp.propertyName}: selected "${String(rp.selectedValue)}" (${rp.optionCount ?? 0} options available)`
                     }
-                    return `⏸ ${rp.propertyName}: ${rp.options?.length ?? 0} options available — select a value to continue. IMPORTANT: Use the "value" field (the ID), NOT the "label".`
+                    return `⏸ ${rp.propertyName}: ${rp.options?.length ?? 0} options available, select a value to continue. IMPORTANT: Use the "value" field (the ID), NOT the "label".`
                 }).join('\n')
 
                 return {
@@ -179,7 +179,7 @@ const resolvePropertyChainInput = z.object({
         propertyName: z.string().describe('The property name to resolve (e.g. "spreadsheet_id", "sheet_id", "columns").'),
         selectedValue: z.unknown().optional().describe('Value to use for this property. If provided, the tool uses it and continues to the next property. If omitted, the tool returns available options and stops.'),
     })).min(1).max(10).describe('Ordered list of properties to resolve (max 10). Each property is resolved using the values of all prior properties as context.'),
-    auth: z.string().describe('Connection externalId — required to resolve options from the user\'s account.'),
+    auth: z.string().describe('Connection externalId, required to resolve options from the user\'s account.'),
     currentInput: z.record(z.string(), z.unknown()).optional().describe('Additional input values already known (e.g. from prior configuration).'),
 })
 

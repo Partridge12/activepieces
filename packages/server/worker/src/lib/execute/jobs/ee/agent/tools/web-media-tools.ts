@@ -11,7 +11,7 @@ import { AgentEventEmitter, cardTitleFields, describeHttpError, FETCH_URL_TIMEOU
 export function createWebTools({ taintState }: { taintState: TaintState }): ToolSet {
     return {
         ap_fetch_url: tool({
-            description: 'Fetch the readable text of a public web page or API URL over HTTPS (read-only GET). Use it to read a specific page in full — e.g. the API docs you found via web search before building an http_fallback step, or a link the user shared. HTML is stripped to text; JSON/plain text is returned as-is.',
+            description: 'Fetch the readable text of a public web page or API URL over HTTPS (read-only GET). Use it to read a specific page in full, e.g. the API docs you found via web search before building an http_fallback step, or a link the user shared. HTML is stripped to text; JSON/plain text is returned as-is.',
             inputSchema: z.object({
                 ...cardTitleFields,
                 url: z.string().describe('Absolute http(s) URL to fetch'),
@@ -207,10 +207,10 @@ export function createImageTools({ generate, billedAtCost, readImage, conversati
     const generatedThisRun: ConversationImage[] = []
     return {
         ap_generate_image: tool({
-            description: 'Generate an image from a text description. Pick the right `style` for the task: "realistic" for photoreal images and product photos; "graphic_text" for social/email/marketing graphics that contain readable text, logos in layout, posters, or banners; "brand_vector" for clean logos, icons, and brand/vector-style graphics; "abstract" for artistic, conceptual, or background images. The generated image is shown to the user automatically — do not paste the URL into your reply.',
+            description: 'Generate an image from a text description. Pick the right `style` for the task: "realistic" for photoreal images and product photos; "graphic_text" for social/email/marketing graphics that contain readable text, logos in layout, posters, or banners; "brand_vector" for clean logos, icons, and brand/vector-style graphics; "abstract" for artistic, conceptual, or background images. The generated image is shown to the user automatically, do not paste the URL into your reply.',
             inputSchema: z.object({
                 ...cardTitleFields,
-                caption: z.string().optional().describe('A short, fun, task-specific caption shown under the image on its card, e.g. "Neon launch banner for the spring sale" or "Friendly mascot for your onboarding emails". Describe THIS image for the user — do not use a generic label like "Generated image".'),
+                caption: z.string().optional().describe('A short, fun, task-specific caption shown under the image on its card, e.g. "Neon launch banner for the spring sale" or "Friendly mascot for your onboarding emails". Describe THIS image for the user, do not use a generic label like "Generated image".'),
                 prompt: z.string().describe('Detailed description of the image to generate. Include any exact text to render verbatim.'),
                 style: z.enum(['realistic', 'graphic_text', 'brand_vector', 'abstract']).describe('The kind of image to produce'),
                 aspectRatio: z.enum(['square', 'landscape', 'portrait']).optional().describe('Image orientation (default square)'),

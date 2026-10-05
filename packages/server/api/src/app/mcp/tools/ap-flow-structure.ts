@@ -25,11 +25,11 @@ function getConfigStatus({ step, skippedStepNames }: { step: Step, skippedStepNa
     const s = step.settings as { triggerName?: string, actionName?: string }
     switch (step.type) {
         case FlowTriggerType.EMPTY:
-            return 'unconfigured (no trigger set — use ap_update_trigger)'
+            return 'unconfigured (no trigger set, use ap_update_trigger)'
         case FlowTriggerType.PIECE:
-            return s.triggerName ? 'invalid (use ap_update_trigger to fix — check required inputs)' : 'unconfigured (triggerName missing)'
+            return s.triggerName ? 'invalid (use ap_update_trigger to fix, check required inputs)' : 'unconfigured (triggerName missing)'
         case FlowActionType.PIECE:
-            return s.actionName ? 'invalid (use ap_update_step to fix — check required inputs)' : 'unconfigured (actionName missing)'
+            return s.actionName ? 'invalid (use ap_update_step to fix, check required inputs)' : 'unconfigured (actionName missing)'
         case FlowActionType.CODE:
             return 'invalid (check sourceCode/input)'
         case FlowActionType.LOOP_ON_ITEMS:
@@ -212,7 +212,7 @@ function formatFlowStructure(
             if (fullStep && fullStep.type === FlowTriggerType.PIECE) {
                 triggerDetail = ` (piece: ${fullStep.settings.pieceName}, trigger: ${fullStep.settings.triggerName ?? 'not set'})`
             }
-            lines.push(`- [TRIGGER] ${step.name} | ${step.type} | "${step.displayName}"${triggerDetail} | parent: — | ${step.configStatus}${sampleLabel}${skipLabel}${canvasLabel}`)
+            lines.push(`- [TRIGGER] ${step.name} | ${step.type} | "${step.displayName}"${triggerDetail} | parent:, | ${step.configStatus}${sampleLabel}${skipLabel}${canvasLabel}`)
             if (fullStep) {
                 lines.push(...formatStepSettings(fullStep))
             }

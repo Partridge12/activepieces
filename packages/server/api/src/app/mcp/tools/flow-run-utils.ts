@@ -76,7 +76,7 @@ export async function executeFlowTest({ flowId, projectId, userId, stepName, tri
             },
         })
         flow = updatedFlow
-        warning += '⚠️ This test ran on mock trigger data you supplied, not a real trigger event. A passing test here does NOT prove the live flow works: if the real trigger payload uses different field names or casing than your mock, downstream steps will read empty values in production. Verify your mock keys match a real sample (e.g. trigger the flow once for real, or check the trigger sample shape). When reporting this to the user, describe it as "tested with sample data" — NEVER claim it was "verified with real runs".\n\n'
+        warning += '⚠️ This test ran on mock trigger data you supplied, not a real trigger event. A passing test here does NOT prove the live flow works: if the real trigger payload uses different field names or casing than your mock, downstream steps will read empty values in production. Verify your mock keys match a real sample (e.g. trigger the flow once for real, or check the trigger sample shape). When reporting this to the user, describe it as "tested with sample data", NEVER claim it was "verified with real runs".\n\n'
         warning += buildTriggerShapeHint(flow.version.trigger)
     }
 
@@ -237,7 +237,7 @@ export async function executePieceActionRun({
         return {
             content: [{
                 type: 'text',
-                text: `⏳ ${action.displayName} never started — nothing ran and nothing was written. Run ID: ${actionRun.id}. Safe to retry as-is.`,
+                text: `⏳ ${action.displayName} never started, nothing ran and nothing was written. Run ID: ${actionRun.id}. Safe to retry as-is.`,
             }],
             structuredContent: { errorSummary: 'The action never started, so nothing ran.' },
             isError: true,
@@ -248,7 +248,7 @@ export async function executePieceActionRun({
         return {
             content: [{
                 type: 'text',
-                text: `⏳ ${action.displayName} timed out before it finished. Run ID: ${actionRun.id}. It may have partially completed, so do not re-run it blindly — check the app for a write from this attempt first, or ask the user.`,
+                text: `⏳ ${action.displayName} timed out before it finished. Run ID: ${actionRun.id}. It may have partially completed, so do not re-run it blindly, check the app for a write from this attempt first, or ask the user.`,
             }],
             structuredContent: { errorSummary: 'The action timed out before it finished and may have partially completed.' },
             isError: true,
@@ -259,9 +259,9 @@ export async function executePieceActionRun({
         return {
             content: [{
                 type: 'text',
-                text: `❌ ${action.displayName} failed with INTERNAL_ERROR — the engine crashed while loading or executing the piece. Run ID: ${actionRun.id}.`,
+                text: `❌ ${action.displayName} failed with INTERNAL_ERROR, the engine crashed while loading or executing the piece. Run ID: ${actionRun.id}.`,
             }],
-            structuredContent: { errorSummary: 'The step couldn’t start — something went wrong loading it.' },
+            structuredContent: { errorSummary: 'The step couldn’t start, something went wrong loading it.' },
             isError: true,
         }
     }
@@ -371,7 +371,7 @@ function buildTriggerShapeHint(trigger: Step): string {
 function emptyResultNote(actionName?: string): string {
     const cardinality = isNil(actionName) ? 'other' : mcpUtils.classifyActionCardinality(actionName)
     if (cardinality === 'single') {
-        return `Note: empty result. "${actionName}" returns a SINGLE match — if you meant to enumerate records, switch to this app's list/search action (e.g. list_records) rather than retrying this one. Otherwise confirm a connection (auth) is set and any required object/list id is resolved before treating this as "no data".`
+        return `Note: empty result. "${actionName}" returns a SINGLE match, if you meant to enumerate records, switch to this app's list/search action (e.g. list_records) rather than retrying this one. Otherwise confirm a connection (auth) is set and any required object/list id is resolved before treating this as "no data".`
     }
     return 'Note: empty result. Before concluding there\'s no data: confirm a connection (auth) is set and any required object/list id is resolved; if you intended to enumerate, use a list/search action. Retrying the same call with looser filters rarely helps.'
 }
@@ -463,7 +463,7 @@ function serializeOutput({ payload, summary }: { payload: unknown, summary: stri
     const fitted = largeResultUtils.fitToBudget({
         value: payload,
         maxBytes: MAX_TOOL_RESULT_BYTES,
-        wrap: (json) => `${summary}${json}\n\n(Long values above end with "…[truncated]" — shortened, not missing. Every field and record is still listed.${sizeNote} Ask for fewer items or a narrower filter to see a shortened value in full.)`,
+        wrap: (json) => `${summary}${json}\n\n(Long values above end with "…[truncated]", shortened, not missing. Every field and record is still listed.${sizeNote} Ask for fewer items or a narrower filter to see a shortened value in full.)`,
     })
     return fitted ?? `${summary}The output was too large to include.${sizeNote} Retry with a narrower filter or fewer items.`
 }
@@ -506,7 +506,7 @@ export async function pollForRunCompletion(log: FastifyBaseLogger, runId: string
 
 export function formatRunResult(run: FlowRun): string {
     const lines: string[] = []
-    lines.push(`${statusIcon(run.status)} Run ${run.id} — ${run.status} (${formatDuration(run.startTime, run.finishTime)})`)
+    lines.push(`${statusIcon(run.status)} Run ${run.id}, ${run.status} (${formatDuration(run.startTime, run.finishTime)})`)
     lines.push(`  Flow: ${run.flowId} | Environment: ${run.environment}`)
 
     if (run.failedStep) {
@@ -538,7 +538,7 @@ export function formatRunSummary(run: FlowRun): string {
     const dur = formatDuration(run.startTime, run.finishTime)
     const durStr = dur !== 'N/A' ? ` | ${dur}` : ''
     const expired = isStepDataExpired(run) ? ' | step data expired' : ''
-    return `${statusIcon(run.status)} ${run.id} — ${run.status}${env}${durStr}${failed}${expired} | ${run.created}`
+    return `${statusIcon(run.status)} ${run.id}, ${run.status}${env}${durStr}${failed}${expired} | ${run.created}`
 }
 
 function statusIcon(status: FlowRunStatus): string {
@@ -579,11 +579,11 @@ function formatStepOutput(name: string, step: unknown): string {
 
 function stepDataUnavailableReason(run: FlowRun): string {
     if (!isFlowRunStateTerminal({ status: run.status, ignoreInternalError: false })) {
-        return 'not yet available — run is still in progress.'
+        return 'not yet available, run is still in progress.'
     }
     const retentionDays = system.getNumberOrThrow(AppSystemProp.EXECUTION_DATA_RETENTION_DAYS)
     if (isOutsideRetentionWindow(run.created, retentionDays)) {
-        return `not available — execution data is purged after ${retentionDays} days. Re-run the flow with ap_test_flow or ap_retry_run to capture fresh step data.`
+        return `not available, execution data is purged after ${retentionDays} days. Re-run the flow with ap_test_flow or ap_retry_run to capture fresh step data.`
     }
     return 'not available for this run.'
 }

@@ -59,7 +59,7 @@ export const apUpdateBranchTool = ({ mcp, userId }: McpToolContext, log: Fastify
                     return {
                         content: [{
                             type: 'text',
-                            text: `❌ branchIndex ${branchIndex} is out of range. Valid indices are 0–${branches.length - 1}.`,
+                            text: `❌ branchIndex ${branchIndex} is out of range. Valid indices are 0-${branches.length - 1}.`,
                         }],
                     }
                 }

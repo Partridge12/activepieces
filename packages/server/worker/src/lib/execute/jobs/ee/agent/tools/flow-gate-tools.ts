@@ -28,7 +28,7 @@ export function wrapTestFlowGate({ mcpTools, checkFlowWrites, waitForApproval, s
                     const writeSteps = Array.isArray(check['writeSteps']) ? check['writeSteps'].filter((s): s is string => typeof s === 'string') : []
                     const flowName = typeof check['flowName'] === 'string' ? check['flowName'] : 'this flow'
                     const gateLabel = writeSteps.length > 0
-                        ? `Run a live test of "${flowName}" — performs: ${writeSteps.join(', ')}`
+                        ? `Run a live test of "${flowName}", performs: ${writeSteps.join(', ')}`
                         : `Run a live test of "${flowName}"`
                     // Render the confirmation card in the live session (and persist it for refresh).
                     // Without the emit the gate would block silently until the approval timeout.

@@ -14,7 +14,7 @@ import { pieceExpertise } from './piece-expertise'
 export const apGetPiecePropsTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLogger): McpToolDefinition => {
     return {
         title: 'ap_get_piece_props',
-        description: 'Get the input schema for a piece action or trigger, plus AI guidance for using it: an AI-written description of what it does, an idempotency hint, and — when available — the output field paths it produces (for triggers, also derived from sample data). Use the AI description to pick the right action; when output fields are listed, reference them directly downstream as {{step[\'output\'].path}}. Pass auth to resolve dynamic dropdowns and dynamic property sub-fields (e.g. Custom API Call url/body fields).',
+        description: 'Get the input schema for a piece action or trigger, plus AI guidance for using it: an AI-written description of what it does, an idempotency hint, and, when available, the output field paths it produces (for triggers, also derived from sample data). Use the AI description to pick the right action; when output fields are listed, reference them directly downstream as {{step[\'output\'].path}}. Pass auth to resolve dynamic dropdowns and dynamic property sub-fields (e.g. Custom API Call url/body fields).',
         inputSchema: getPiecePropsInput.shape,
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
         execute: async (args) => {
@@ -124,12 +124,12 @@ export const apGetPiecePropsTool = (mcp: ProjectScopedMcpServer, log: FastifyBas
                     ? '📤 Output fields this step produces'
                     : '📤 Output fields (from this trigger\'s sample data)'
                 const arrayPathHint = outputFields.some(path => path.includes('[]'))
-                    ? '\nNote: `[]` marks an array — replace it with an index. A path starting with `[]` means the output itself is the array, e.g. {{<stepName>[\'output\'][0].row}}.'
+                    ? '\nNote: `[]` marks an array, replace it with an index. A path starting with `[]` means the output itself is the array, e.g. {{<stepName>[\'output\'][0].row}}.'
                     : ''
                 const outputSection = outputFields.length > 0
-                    ? `\n\n${outputHeader} — reference them directly as {{<stepName>['output'].<path>}}:\n${outputFields.map(p => `- ${p}`).join('\n')}${arrayPathHint}`
+                    ? `\n\n${outputHeader}, reference them directly as {{<stepName>['output'].<path>}}:\n${outputFields.map(p => `- ${p}`).join('\n')}${arrayPathHint}`
                     : wholeOutput
-                        ? `\n\n📤 Output: the entire step output IS the value — ${wholeOutput}. Reference it as {{<stepName>['output']}} (no field path).`
+                        ? `\n\n📤 Output: the entire step output IS the value, ${wholeOutput}. Reference it as {{<stepName>['output']}} (no field path).`
                         : ''
                 const requiredLine = requiredInputs.provideNow.length > 0 || requiredInputs.needsResolution.length > 0
                     ? `\nRequired now: ${requiredInputs.provideNow.join(', ') || '(none)'}.${requiredInputs.needsResolution.length > 0 ? ` Resolve first (ap_resolve_property_options): ${requiredInputs.needsResolution.join(', ')}.` : ''}`
@@ -277,7 +277,7 @@ const getPiecePropsInput = z.object({
     actionOrTriggerName: z.string().describe('The action or trigger name (e.g. "send_channel_message"). Use ap_research_pieces with pieceNames to get valid values.'),
     type: z.enum(['action', 'trigger']).describe('Whether to look up an action or a trigger.'),
     auth: z.string().optional().describe('Connection externalId from ap_list_connections. When provided, dynamic dropdowns and dynamic property sub-fields are resolved via your account.'),
-    flowId: z.string().optional().describe('Flow ID for resolving dependent dropdowns that need step context. Optional — most dropdowns work without it.'),
+    flowId: z.string().optional().describe('Flow ID for resolving dependent dropdowns that need step context. Optional, most dropdowns work without it.'),
     input: z.record(z.string(), z.unknown()).optional().describe('Known input values to resolve dependent dynamic properties.'),
 })
 

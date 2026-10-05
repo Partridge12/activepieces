@@ -7,7 +7,7 @@ import { mcpUtils } from './mcp-utils'
 export const apSearchTriggersTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLogger): McpToolDefinition => {
     return {
         title: 'ap_search_triggers',
-        description: 'Find piece triggers (the event that starts a flow) by natural-language description of when the flow should run (e.g. "when a new row is added to a Google Sheet", "when an email arrives"). Returns the most semantically relevant triggers ranked by similarity — lightweight rows only — or an empty list when nothing in the catalog is relevant (it does not force a match). Always available: when no embedding model is configured it falls back to a keyword catalog search (response "mode":"keyword", lexical not semantic). Each row carries a `connected` flag indicating whether this project already has a connection for the piece. Optionally scope to a single piece with `pieceName`. This is the discovery step: take a result\'s pieceName + triggerName to ap_get_piece_props for its input schema.',
+        description: 'Find piece triggers (the event that starts a flow) by natural-language description of when the flow should run (e.g. "when a new row is added to a Google Sheet", "when an email arrives"). Returns the most semantically relevant triggers ranked by similarity, lightweight rows only, or an empty list when nothing in the catalog is relevant (it does not force a match). Always available: when no embedding model is configured it falls back to a keyword catalog search (response "mode":"keyword", lexical not semantic). Each row carries a `connected` flag indicating whether this project already has a connection for the piece. Optionally scope to a single piece with `pieceName`. This is the discovery step: take a result\'s pieceName + triggerName to ap_get_piece_props for its input schema.',
         inputSchema: searchTriggersInput.shape,
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         execute: async (args) => {
@@ -30,7 +30,7 @@ export const apSearchTriggersTool = (mcp: ProjectScopedMcpServer, log: FastifyBa
                     ? 'the embedding service call failed'
                     : 'no embedding model configured'
                 const modeNote = mode === 'keyword'
-                    ? ` (keyword fallback — ${degradeCause}, so matches are lexical, not semantic)`
+                    ? ` (keyword fallback, ${degradeCause}, so matches are lexical, not semantic)`
                     : ''
                 const text = results.length === 0
                     ? `🔍 No matching triggers found for "${query}".`

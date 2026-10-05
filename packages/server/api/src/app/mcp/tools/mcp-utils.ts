@@ -67,9 +67,9 @@ function formatOptionsHint(options: Array<{ label: string, value: unknown }> | u
     }
     const values = options.map(o => String(o.value))
     if (values.length > 10) {
-        return ` — options: ${values.slice(0, 10).join(', ')}... (${values.length} total)`
+        return `, options: ${values.slice(0, 10).join(', ')}... (${values.length} total)`
     }
-    return ` — options: ${values.join(', ')}`
+    return `, options: ${values.join(', ')}`
 }
 
 function levenshtein(a: string, b: string): number {
@@ -152,12 +152,12 @@ function diagnosePieceProps({ props, input, pieceAuth, requireAuth, componentTyp
         const isStaticDropdown = prop.type === PropertyType.STATIC_DROPDOWN || prop.type === PropertyType.STATIC_MULTI_SELECT_DROPDOWN
         const optionsHint = isStaticDropdown
             ? formatOptionsHint(prop.options?.options)
-            : (prop.type === PropertyType.DYNAMIC ? ' — DYNAMIC: resolve sub-fields with ap_get_piece_props' : '')
+            : (prop.type === PropertyType.DYNAMIC ? ', DYNAMIC: resolve sub-fields with ap_get_piece_props' : '')
         allProps.push(`${propName} (${prop.type}${prop.required ? ', required' : ''}${optionsHint})`)
         const value = input[propName]
         const valueProvided = value !== undefined && value !== null && value !== ''
         if (prop.required && !valueProvided) {
-            const descriptionHint = prop.description ? ` — ${prop.description}` : ''
+            const descriptionHint = prop.description ? `, ${prop.description}` : ''
             if (RESOLVABLE_PROP_TYPES.has(prop.type)) {
                 uiRequired.push(`${propName} (${prop.displayName})${descriptionHint}`)
             }
@@ -179,7 +179,7 @@ function diagnosePieceProps({ props, input, pieceAuth, requireAuth, componentTyp
 
     const hasAuth = pieceAuth !== undefined && pieceAuth !== null && requireAuth
     if (hasAuth && !input.auth) {
-        missing.push('auth (connection required — use ap_list_connections)')
+        missing.push('auth (connection required, use ap_list_connections)')
     }
     const parts: string[] = []
     if (unknownKeys.length > 0) {
@@ -203,7 +203,7 @@ function diagnosePieceProps({ props, input, pieceAuth, requireAuth, componentTyp
         parts.push(`Missing required inputs: ${missing.join(', ')}.`)
     }
     if (uiRequired.length > 0) {
-        parts.push(`These inputs are dropdown/dynamic fields — resolve their values with ap_resolve_property_options (or ap_get_piece_props with auth) and pass the returned value (ID), then retry: ${uiRequired.join(', ')}.`)
+        parts.push(`These inputs are dropdown/dynamic fields, resolve their values with ap_resolve_property_options (or ap_get_piece_props with auth) and pass the returned value (ID), then retry: ${uiRequired.join(', ')}.`)
     }
     if (allProps.length > 0 && unknownKeys.length === 0) {
         parts.push(`Expected inputs: ${allProps.join(', ')}.`)
@@ -286,7 +286,7 @@ function buildPropSummaries(props: PiecePropertyMap, depth = 0): PropSummary[] {
                 summary.note = 'Resolve with ap_resolve_property_options. Use the returned value (ID), not label.'
             }
             if (prop.type === PropertyType.DYNAMIC) {
-                summary.note = 'DYNAMIC — call ap_get_piece_props with auth+input to resolve sub-fields.'
+                summary.note = 'DYNAMIC, call ap_get_piece_props with auth+input to resolve sub-fields.'
             }
             if (prop.type === PropertyType.ARRAY && 'properties' in prop && isObject(prop.properties) && depth < MAX_PROP_DEPTH) {
                 const arraySubProps: PiecePropertyMap = prop.properties
@@ -457,7 +457,7 @@ const BRANCH_CONDITIONS_INPUT_SCHEMA = z.array(
         z.object({
             firstValue: z.string().min(1, 'firstValue must be a non-empty string or template expression (e.g. {{trigger[\'output\'].field}})').describe('Left-hand value (template expressions like {{step_1[\'output\'].field}} are allowed). Must be non-empty.'),
             operator: z.enum(Object.values(BranchOperator) as [BranchOperator, ...BranchOperator[]]).optional().describe(`Comparison operator. Single-value operators (no secondValue needed): ${SINGLE_VALUE_OPERATORS_HINT}.`),
-            secondValue: z.string().min(1, 'secondValue must be a non-empty string when provided').optional().describe('Right-hand value (template expressions like {{step_1[\'output\'].field}} are allowed) — required (and non-empty) for all operators except single-value ones.'),
+            secondValue: z.string().min(1, 'secondValue must be a non-empty string when provided').optional().describe('Right-hand value (template expressions like {{step_1[\'output\'].field}} are allowed), required (and non-empty) for all operators except single-value ones.'),
             caseSensitive: z.boolean().optional().describe('For text operators: whether to match case sensitively'),
         }).superRefine((cond, ctx) => {
             if (cond.operator !== undefined
@@ -473,7 +473,7 @@ const BRANCH_CONDITIONS_INPUT_SCHEMA = z.array(
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['operator'],
-                    message: 'operator is required when secondValue is provided — pick a comparison operator (e.g. TEXT_CONTAINS, TEXT_EXACTLY_MATCHES, NUMBER_IS_EQUAL_TO).',
+                    message: 'operator is required when secondValue is provided, pick a comparison operator (e.g. TEXT_CONTAINS, TEXT_EXACTLY_MATCHES, NUMBER_IS_EQUAL_TO).',
                 })
             }
         }),
@@ -503,14 +503,14 @@ function routerInvalidWarning({ stepName, trigger }: { stepName: string, trigger
     if (isNil(step) || step.valid) {
         return ''
     }
-    return `\n⚠️ The router "${stepName}" is now marked invalid (step.valid=false) — the UI will show "Incomplete" and the flow cannot be published. Inspect the branch conditions with ap_flow_structure: every condition needs a non-empty firstValue, and any non-single-value operator (TEXT_*, NUMBER_*, DATE_*, LIST_CONTAINS/LIST_DOES_NOT_CONTAIN) needs a non-empty secondValue.`
+    return `\n⚠️ The router "${stepName}" is now marked invalid (step.valid=false), the UI will show "Incomplete" and the flow cannot be published. Inspect the branch conditions with ap_flow_structure: every condition needs a non-empty firstValue, and any non-single-value operator (TEXT_*, NUMBER_*, DATE_*, LIST_CONTAINS/LIST_DOES_NOT_CONTAIN) needs a non-empty secondValue.`
 }
 
 function publishedFlowWarning(publishedVersionId: string | null | undefined): string {
     if (isNil(publishedVersionId)) {
         return ''
     }
-    return '\n⚠️ This flow is published. Changes apply to the draft only — use ap_lock_and_publish to push them live.'
+    return '\n⚠️ This flow is published. Changes apply to the draft only, use ap_lock_and_publish to push them live.'
 }
 
 function resolveConnectionExternalId({ connectionExternalId, input }: { connectionExternalId: unknown, input: unknown }): string | undefined {

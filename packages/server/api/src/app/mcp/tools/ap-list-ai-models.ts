@@ -64,7 +64,7 @@ export const apListAiModelsTool = (mcp: ProjectScopedMcpServer, log: FastifyBase
                             const overflow = textModels.length > MAX_MODELS_PER_PROVIDER
                                 ? `\n    ... and ${textModels.length - MAX_MODELS_PER_PROVIDER} more${filterProvider ? '' : ` (use provider="${p.provider}" to see all)`}`
                                 : ''
-                            return `- ${p.provider} (${p.name}) — ${textModels.length} text model(s)\n  Models:\n${modelLines}${overflow}`
+                            return `- ${p.provider} (${p.name}), ${textModels.length} text model(s)\n  Models:\n${modelLines}${overflow}`
                         }
                         catch (err) {
                             log.warn({ error: err, provider: p.provider }, 'ap_list_ai_models: failed to fetch models for provider')

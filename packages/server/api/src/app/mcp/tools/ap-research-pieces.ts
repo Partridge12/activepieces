@@ -31,7 +31,7 @@ export const apResearchPiecesTool = (mcp: ProjectScopedMcpServer, log: FastifyBa
             locale: researchPiecesSchema.shape.locale,
             includeActions: z.boolean().optional().describe('When true, include action names and descriptions for each piece (only applies to searchQuery mode)'),
             includeTriggers: z.boolean().optional().describe('When true, include trigger names and descriptions for each piece (only applies to searchQuery mode)'),
-            forIntent: z.string().optional().describe('What you are trying to do (e.g. "list all my open deals"). When set, each piece also returns recommendedActions — the actions whose AI guidance best matches your intent — so you can pick the right action in one shot. Advisory only; the full action list is always returned.'),
+            forIntent: z.string().optional().describe('What you are trying to do (e.g. "list all my open deals"). When set, each piece also returns recommendedActions, the actions whose AI guidance best matches your intent, so you can pick the right action in one shot. Advisory only; the full action list is always returned.'),
         },
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         execute: async (args) => {
@@ -161,7 +161,7 @@ async function searchPieces({ params, projectId, platformId, log }: {
             actions: p.actions,
             triggers: p.triggers,
         }))
-        const hint = totalCount > LIST_CAP ? ` (showing ${LIST_CAP} of ${totalCount} — use searchQuery to narrow results)` : ''
+        const hint = totalCount > LIST_CAP ? ` (showing ${LIST_CAP} of ${totalCount}, use searchQuery to narrow results)` : ''
         return {
             content: [{ type: 'text', text: `✅ Found pieces${hint}:\n${JSON.stringify(capped)}` }],
             structuredContent: {
@@ -199,7 +199,7 @@ async function searchPieces({ params, projectId, platformId, log }: {
     }))
 
     const overflowHint = totalCount > ENRICHED_CAP
-        ? ` (showing top ${ENRICHED_CAP} of ${totalCount} results — use a more specific searchQuery to narrow results)`
+        ? ` (showing top ${ENRICHED_CAP} of ${totalCount} results, use a more specific searchQuery to narrow results)`
         : ''
     return fitEnrichedResponse({ pieces: enrichedPieces, overflowHint, totalCount })
 }
@@ -225,7 +225,7 @@ export function fitEnrichedResponse({ pieces, overflowHint, totalCount }: {
     const result = pieceSearchResult({ pieces: withoutComponents, overflowHint, totalCount, trimmed: true })
     return fitsBudget(result)
         ? result
-        : pieceSearchResult({ pieces: [], overflowHint: ` (${totalCount} pieces matched, too many to name here — narrow the searchQuery)`, totalCount, trimmed: true })
+        : pieceSearchResult({ pieces: [], overflowHint: ` (${totalCount} pieces matched, too many to name here, narrow the searchQuery)`, totalCount, trimmed: true })
 }
 
 function trimComponents(piece: EnrichedPiece, trim: (component: ComponentSummary) => Partial<ComponentSummary>): TrimmedPiece {
@@ -256,7 +256,7 @@ function fitsBudget(result: PieceSearchResult): boolean {
 function emptySearchResult(searchQuery: string | undefined): { content: [{ type: 'text', text: string }], structuredContent: Record<string, unknown> } {
     const query = searchQuery ?? ''
     const suggestion = query.trim().length > 0
-        ? `No pieces matched "${query}". Try a shorter, single-word app name, or look the app up directly with pieceNames (e.g. pieceNames:["${query.trim().split(/\s+/)[0].toLowerCase()}"]). If it still isn't found, the app likely has no dedicated piece — reach it over the web with an HTTP request instead.`
+        ? `No pieces matched "${query}". Try a shorter, single-word app name, or look the app up directly with pieceNames (e.g. pieceNames:["${query.trim().split(/\s+/)[0].toLowerCase()}"]). If it still isn't found, the app likely has no dedicated piece, reach it over the web with an HTTP request instead.`
         : 'No pieces matched. Provide a searchQuery (a single-word app name works best) or use pieceNames for an exact lookup.'
     return {
         content: [{ type: 'text', text: `⚠️ ${suggestion}` }],

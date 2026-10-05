@@ -23,7 +23,7 @@ export const cardTitleFields = {
 }
 export const richOptionSchema = z.object({
     label: z.string().describe('The choice label'),
-    piece: z.string().optional().describe('When this option IS an app/integration, set its piece name (e.g. "google-sheets", "hubspot", "@activepieces/piece-airtable") to show the real app logo. Prefer this over icon whenever the option is an app — use the exact piece names returned by ap_research_pieces.'),
+    piece: z.string().optional().describe('When this option IS an app/integration, set its piece name (e.g. "google-sheets", "hubspot", "@activepieces/piece-airtable") to show the real app logo. Prefer this over icon whenever the option is an app, use the exact piece names returned by ap_research_pieces.'),
     icon: z.string().optional().describe(`Optional Lucide icon name (kebab-case) for short (1-2 word) non-app labels (ignored if piece is set). Allowed names: ${QUESTION_ICON_NAMES}`),
     description: z.string().optional().describe('Optional one-line subtitle under the label'),
 })
@@ -61,7 +61,7 @@ export function truncateLargeResult(result: unknown): unknown {
         maxBytes: MAX_TOOL_RESULT_BYTES,
         wrap: (json) => buildOversizeEnvelope({
             result,
-            text: `[LARGE RESPONSE — long values were truncated to fit, structure preserved]${sizeNote} Truncated values are marked with "…[truncated]".\n\n${json}`,
+            text: `[LARGE RESPONSE, long values were truncated to fit, structure preserved]${sizeNote} Truncated values are marked with "…[truncated]".\n\n${json}`,
         }),
     })
     return fitted ?? buildOversizeEnvelope({
@@ -85,7 +85,7 @@ export function normalizePieceName(piece: string): string {
 }
 
 export function gateNoResponseMessage(step: string): string {
-    return `⏳ The user hasn't responded to the ${step} yet (it timed out) — they did NOT decline, they're just away. Decide based on how essential this step is: if the task can continue without it, skip only this step, keep going, and briefly tell the user what you skipped and why. If it is required to proceed, stop here and tell the user this step needs their approval — ask them to approve it to continue. Never assume approval or perform the gated action on your own.`
+    return `⏳ The user hasn't responded to the ${step} yet (it timed out), they did NOT decline, they're just away. Decide based on how essential this step is: if the task can continue without it, skip only this step, keep going, and briefly tell the user what you skipped and why. If it is required to proceed, stop here and tell the user this step needs their approval, ask them to approve it to continue. Never assume approval or perform the gated action on your own.`
 }
 
 export function stableStringify(value: unknown): string {

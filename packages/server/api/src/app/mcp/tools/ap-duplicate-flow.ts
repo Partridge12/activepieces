@@ -65,7 +65,7 @@ export const apDuplicateFlowTool = ({ mcp, userId }: McpToolContext, log: Fastif
                     return {
                         content: [{
                             type: 'text',
-                            text: `✅ Flow duplicated successfully.\n  Original: "${sourceFlow.version.displayName}" (id: ${sourceFlow.id})\n  Copy: "${updatedFlow.version.displayName}" (id: ${updatedFlow.id})\n\nNote: Connections are not copied — use ap_flow_structure on the new flow to check configuration status and re-configure steps as needed.`,
+                            text: `✅ Flow duplicated successfully.\n  Original: "${sourceFlow.version.displayName}" (id: ${sourceFlow.id})\n  Copy: "${updatedFlow.version.displayName}" (id: ${updatedFlow.id})\n\nNote: Connections are not copied, use ap_flow_structure on the new flow to check configuration status and re-configure steps as needed.`,
                         }],
                     }
                 }

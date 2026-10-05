@@ -28,7 +28,7 @@ export const apRetryRunTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLogg
                 const existingRun = await flowRunService(log).getOneOrThrow({ id: flowRunId, projectId: mcp.projectId })
 
                 if (!isFlowRunStateTerminal({ status: existingRun.status, ignoreInternalError: false })) {
-                    return { content: [{ type: 'text', text: `❌ Run is ${existingRun.status} — can only retry runs in a terminal state.` }] }
+                    return { content: [{ type: 'text', text: `❌ Run is ${existingRun.status}, can only retry runs in a terminal state.` }] }
                 }
 
                 if (existingRun.status === FlowRunStatus.SUCCEEDED) {
@@ -38,7 +38,7 @@ export const apRetryRunTool = (mcp: ProjectScopedMcpServer, log: FastifyBaseLogg
                 if (strategy === FlowRetryStrategy.ON_LATEST_VERSION) {
                     const flow = await flowService(log).getOneOrThrow({ id: existingRun.flowId, projectId: mcp.projectId })
                     if (isNil(flow.publishedVersionId)) {
-                        return { content: [{ type: 'text', text: '❌ Cannot retry with ON_LATEST_VERSION — this flow has not been published yet. Use ap_lock_and_publish first.' }] }
+                        return { content: [{ type: 'text', text: '❌ Cannot retry with ON_LATEST_VERSION, this flow has not been published yet. Use ap_lock_and_publish first.' }] }
                     }
                 }
 
