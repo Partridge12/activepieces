@@ -1,4 +1,4 @@
-import { ActivepiecesError, AIProviderName, apId, ErrorCode, isNil, PlatformId, spreadIfDefined, spreadIfNotUndefined, unique } from '@activepieces/core-utils'
+import { ActivepiecesError, AIProviderName, apId, ErrorCode, isNil, PlatformId, spreadIfDefined, spreadIfNotUndefined, tryCatch, unique } from '@activepieces/core-utils'
 import { AiProviderModelScope, CreatePlatformModelTierRequest, PlatformModelTier, PlatformModelTierEntry, PlatformModelTierSummary, UpdatePlatformModelTierRequest } from '@activepieces/shared'
 import { EntityManager, In } from 'typeorm'
 import { repoFactory } from '../core/db/repo-factory'
@@ -48,6 +48,7 @@ export const platformModelTierService = {
                 entries: request.entries,
                 thinkingBudget: request.thinkingBudget ?? null,
                 isDefault: isFirstTier,
+                isFast: isFirstTier,
                 deleted: null,
                 replacedBy: null,
             })
@@ -67,6 +68,9 @@ export const platformModelTierService = {
             if (request.isDefault === true && !tier.isDefault) {
                 await tierRepo(manager).update({ platformId, isDefault: true }, { isDefault: false })
             }
+            if (request.isFast === true && !tier.isFast) {
+                await tierRepo(manager).update({ platformId, isFast: true }, { isFast: false })
+            }
             await tierRepo(manager).update({ platformId, id }, {
                 ...spreadIfDefined('name', request.name),
                 ...spreadIfDefined('emoji', request.emoji),
@@ -74,6 +78,7 @@ export const platformModelTierService = {
                 ...spreadIfDefined('entries', request.entries),
                 ...spreadIfNotUndefined('thinkingBudget', request.thinkingBudget),
                 ...spreadIfDefined('isDefault', request.isDefault),
+                ...spreadIfDefined('isFast', request.isFast),
             })
             return getLiveOrThrow({ manager, platformId, id })
         }))
@@ -113,7 +118,7 @@ export const platformModelTierService = {
             const tier = await getLiveOrThrow({ manager, platformId, id })
             if (isNil(replacedBy)) {
                 await assertLastTierCanGo({ manager, platformId })
-                await tierRepo(manager).update({ platformId, id }, { isDefault: false })
+                await tierRepo(manager).update({ platformId, id }, { isDefault: false, isFast: false })
                 await tierRepo(manager).softDelete({ platformId, id })
                 return
             }
@@ -122,10 +127,13 @@ export const platformModelTierService = {
                 'UPDATE "platform_model_tier" SET "replacedBy" = $1 WHERE "platformId" = $2 AND ("id" = $3 OR "replacedBy" = $3)',
                 [replacedBy, platformId, id],
             )
-            await tierRepo(manager).update({ platformId, id }, { isDefault: false })
+            await tierRepo(manager).update({ platformId, id }, { isDefault: false, isFast: false })
             await tierRepo(manager).softDelete({ platformId, id })
-            if (tier.isDefault) {
-                await tierRepo(manager).update({ platformId, id: replacedBy }, { isDefault: true })
+            if (tier.isDefault || tier.isFast) {
+                await tierRepo(manager).update({ platformId, id: replacedBy }, {
+                    ...(tier.isDefault ? { isDefault: true } : {}),
+                    ...(tier.isFast ? { isFast: true } : {}),
+                })
             }
         })
     },
@@ -136,6 +144,15 @@ export const platformModelTierService = {
         if (tiers.length > 0) {
             throw keyInUseError({ tierNames: tiers.map((tier) => tier.name) })
         }
+    },
+
+    async getFastForRun({ platformId }: { platformId: PlatformId }): Promise<TierForRun | null> {
+        const fastTier = await tierRepo().findOneBy({ platformId, isFast: true })
+        if (isNil(fastTier)) {
+            return null
+        }
+        const { data } = await tryCatch(() => platformModelTierService.getForRun({ platformId, id: fastTier.id }))
+        return data ?? null
     },
 
     async getForRun({ platformId, id }: { platformId: PlatformId, id: string }): Promise<TierForRun> {
@@ -288,6 +305,7 @@ function toSummary({ tier, providerByConfigId }: { tier: PlatformModelTier, prov
         description: tier.description ?? null,
         position: tier.position,
         isDefault: tier.isDefault,
+        isFast: tier.isFast,
         mainModel: isNil(main) || isNil(provider) ? null : { provider, modelId: main.modelId },
         fallbackCount: Math.max(tier.entries.length - 1, 0),
     }
