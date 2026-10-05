@@ -100,12 +100,22 @@ export type SubagentStep = {
     summary: string
 }
 
+export type SubagentLink = {
+    url: string
+    title?: string
+}
+
+export type SubagentTimelineEntry =
+    | { kind: 'status', text: string }
+    | { kind: 'search', query: string, results: SubagentLink[] }
+    | { kind: 'read', url: string, title?: string }
+
 export type SubagentActivity = {
     taskId?: string
     title: string
     status: 'running' | 'done' | 'blocked' | 'failed'
     statusLine?: string
-    statusHistory?: string[]
+    timeline?: SubagentTimelineEntry[]
     steps: SubagentStep[]
     pieces?: string[]
     artifacts?: { type: string, id: string, name: string }[]

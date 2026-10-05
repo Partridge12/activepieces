@@ -1,5 +1,5 @@
-import { AIProviderName, isNil, isObject, tryCatch } from '@activepieces/core-utils'
-import { AgentPhase, agentToolClassification, BeginAgentTaskResponse, chatBilling, FinishAgentTaskRequest, PersistedAgentPart, PersistedAgentPartType, PersistedToolCallStatus, SubagentActivity, SubagentStep, TASK_COMPLETION_TOOL_NAME } from '@activepieces/shared'
+import { AIProviderName, isNil, isObject, tryCatch, tryCatchSync } from '@activepieces/core-utils'
+import { AgentPhase, agentToolClassification, BeginAgentTaskResponse, chatBilling, FinishAgentTaskRequest, PersistedAgentPart, PersistedAgentPartType, PersistedToolCallStatus, SubagentActivity, SubagentLink, SubagentStep, SubagentTimelineEntry, TASK_COMPLETION_TOOL_NAME } from '@activepieces/shared'
 import { hasToolCall, isLoopFinished, LanguageModel, ModelMessage, tool, ToolSet } from 'ai'
 import { z } from 'zod'
 import { AgentTurnResult, runAgentTurn, RunAgentTurnParams } from '../run-agent-turn'
@@ -27,8 +27,9 @@ export function createTaskSubagentTools({ tools, model, provider, tier, modelId,
     const workerTools = Object.fromEntries(Object.entries(tools).filter(([name]) => !NOT_FOR_TASKS.includes(name)))
     return {
         [TASK_TOOL_NAME]: tool({
-            description: 'Hand one self-contained goal to a focused sub-agent with its own fresh context and the same tools you have (read, search, build, update, execute; risky actions still ask the user for approval). Use it for work whose middle is big or noisy: build and validate one flow, research how to reach an app, work through many records, investigate a failed run. Several calls in one step run in parallel; only parallelize independent goals. It cannot ask the user anything: when it needs something only the user can give it finishes as blocked and says what. Pass taskId to continue a task you started earlier in this conversation (after a block, or for a follow-up on what it built).',
+            description: 'Hand one self-contained goal to a focused sub-agent with its own fresh context and the same tools you have (read, search, build, update, execute; risky actions still ask the user for approval). Use it when it buys something: goals that can run in parallel (several calls in one step run at once), like the separate flows of a multi-flow solution or deep research on several subjects (one task per competitor, vendor or app, each doing several searches and reading pages, while you compare the briefs and do the final step); or noisy preparation with a short answer (going through many records or runs, investigating a failure). Build a single flow, make small edits and do quick one-search lookups yourself. It cannot ask the user anything: when it needs something only the user can give it finishes as blocked and says what. Pass taskId to continue a task you started earlier in this conversation (after a block, or for a follow-up on what it built).',
             inputSchema: taskInput,
+            toModelOutput: ({ output }) => ({ type: 'text', value: modelView(output) }),
             execute: async ({ title, brief, taskId }, { toolCallId }) => {
                 const { data: begun, error } = await tryCatch(() => beginTask({ title, ...(isNil(taskId) ? {} : { taskId }) }))
                 if (error || isNil(begun)) {
@@ -40,7 +41,7 @@ export function createTaskSubagentTools({ tools, model, provider, tier, modelId,
                 const finish: { result?: TaskResult } = {}
                 const priorMessages = begun.messages.filter(isModelMessage)
                 const messages: ModelMessage[] = [...priorMessages, { role: 'user', content: brief }]
-                const phaseState: { phase: AgentPhase } = { phase: 'discovery' }
+                const phaseState: { phase: AgentPhase } = { phase: 'build' }
                 const taskTools = {
                     ...workerTools,
                     ...createPhaseTools({ onPhaseChange: (phase) => {
@@ -48,30 +49,31 @@ export function createTaskSubagentTools({ tools, model, provider, tier, modelId,
                     } }),
                     ...finishTool(finish),
                 }
-                const turn = await taskContext.run({
-                    title,
-                    fn: () => runAgentTurn({
-                        model,
-                        provider,
-                        systemPrompt: taskPrompt,
-                        messages,
-                        tools: taskTools,
-                        allToolNames: Object.keys(taskTools),
-                        tier,
-                        modelId,
-                        phaseState,
-                        abortSignal,
-                        log,
-                        creditsLeft: creditsLeftFor(toolCallId),
-                        stopWhen: [isLoopFinished(), hasToolCall(TASK_COMPLETION_TOOL_NAME)],
-                        sinks: {
-                            drainStream: async (result) => {
-                                await result.consumeStream()
-                            },
-                            onProgress: ({ uiParts }) => report(runningActivity({ title, uiParts, startedAt })),
+                const turnParams: RunAgentTurnParams = {
+                    model,
+                    provider,
+                    systemPrompt: taskPrompt,
+                    messages,
+                    tools: taskTools,
+                    allToolNames: Object.keys(taskTools),
+                    tier,
+                    modelId,
+                    phaseState,
+                    abortSignal,
+                    log,
+                    creditsLeft: creditsLeftFor(toolCallId),
+                    stopWhen: [isLoopFinished(), hasToolCall(TASK_COMPLETION_TOOL_NAME)],
+                    sinks: {
+                        drainStream: async (result) => {
+                            await result.consumeStream()
                         },
-                    }),
-                })
+                        onProgress: ({ uiParts }) => report(runningActivity({ title, uiParts, startedAt })),
+                    },
+                }
+                const workTurn = await workUntilSettled({ title, turnParams, finished: () => !isNil(finish.result) })
+                const turn = isNil(finish.result) && endedCleanly({ turn: workTurn, abortSignal })
+                    ? await continueTurn({ title, turnParams, previous: workTurn, request: REPORT_REQUEST, overrides: { tools: finishTool(finish), allToolNames: [TASK_COMPLETION_TOOL_NAME], stepCeiling: 1 } })
+                    : workTurn
                 const result = finish.result ?? fallbackResult(turn)
                 const activity = finalActivity({ title, turn, result, startedAt })
                 await tryCatch(() => finishTask({
@@ -94,6 +96,62 @@ export function createTaskSubagentTools({ tools, model, provider, tier, modelId,
             },
         }),
     }
+}
+
+async function workUntilSettled({ title, turnParams, finished }: {
+    title: string
+    turnParams: RunAgentTurnParams
+    finished: () => boolean
+}): Promise<AgentTurnResult> {
+    const first = await taskContext.run({ title, fn: () => runAgentTurn(turnParams) })
+    return continueAfterInterruptions({ title, turnParams, finished, turn: first, continuationsLeft: MAX_CONTINUATIONS })
+}
+
+async function continueAfterInterruptions({ title, turnParams, finished, turn, continuationsLeft }: {
+    title: string
+    turnParams: RunAgentTurnParams
+    finished: () => boolean
+    turn: AgentTurnResult
+    continuationsLeft: number
+}): Promise<AgentTurnResult> {
+    const shouldContinue = !finished() && continuationsLeft > 0 && interruptedTransiently({ turn, abortSignal: turnParams.abortSignal })
+    if (!shouldContinue) {
+        return turn
+    }
+    const continued = await continueTurn({ title, turnParams, previous: turn, request: CONTINUE_REQUEST, overrides: {} })
+    return continueAfterInterruptions({ title, turnParams, finished, turn: continued, continuationsLeft: continuationsLeft - 1 })
+}
+
+async function continueTurn({ title, turnParams, previous, request, overrides }: {
+    title: string
+    turnParams: RunAgentTurnParams
+    previous: AgentTurnResult
+    request: string
+    overrides: Partial<RunAgentTurnParams>
+}): Promise<AgentTurnResult> {
+    const requestMessage: ModelMessage = { role: 'user', content: request }
+    const next = await taskContext.run({
+        title,
+        fn: () => runAgentTurn({
+            ...turnParams,
+            ...overrides,
+            messages: [...turnParams.messages, ...previous.accumulatedResponseMessages, requestMessage],
+        }),
+    })
+    return {
+        ...next,
+        uiParts: [...previous.uiParts, ...next.uiParts],
+        accumulatedResponseMessages: [...previous.accumulatedResponseMessages, requestMessage, ...next.accumulatedResponseMessages],
+    }
+}
+
+function interruptedTransiently({ turn, abortSignal }: { turn: AgentTurnResult, abortSignal: AbortSignal }): boolean {
+    const outOfBudget = turn.creditsExhausted || turn.budgetExceeded
+    return !abortSignal.aborted && !outOfBudget && (turn.streamError !== null || turn.truncatedAfterRetries)
+}
+
+function endedCleanly({ turn, abortSignal }: { turn: AgentTurnResult, abortSignal: AbortSignal }): boolean {
+    return !abortSignal.aborted && turn.streamError === null && !turn.creditsExhausted && !turn.budgetExceeded
 }
 
 function finishTool(finish: { result?: TaskResult }): ToolSet {
@@ -119,12 +177,13 @@ function fallbackResult(turn: AgentTurnResult): TaskResult {
 }
 
 function runningActivity({ title, uiParts, startedAt }: { title: string, uiParts: PersistedAgentPart[], startedAt: Date }): SubagentActivity {
-    const history = statusHistory(uiParts)
+    const timeline = timelineFrom(uiParts)
+    const statuses = timeline.flatMap((entry) => entry.kind === 'status' ? [entry.text] : [])
     return {
         title,
         status: 'running',
-        statusLine: history[history.length - 1],
-        statusHistory: history,
+        statusLine: statuses[statuses.length - 1],
+        timeline,
         steps: stepsFrom(uiParts),
         pieces: piecesFrom(uiParts),
         startedAt: startedAt.toISOString(),
@@ -143,14 +202,61 @@ function finalActivity({ title, turn, result, startedAt }: { title: string, turn
     }
 }
 
-function statusHistory(parts: PersistedAgentPart[]): string[] {
-    return parts.flatMap((part) => part.type === PersistedAgentPartType.THINKING_STATUS && part.text.trim().length > 0 ? [part.text.trim()] : [])
-}
-
 function stepsFrom(parts: PersistedAgentPart[]): SubagentStep[] {
     return parts.flatMap((part): SubagentStep[] => part.type === PersistedAgentPartType.TOOL_CALL
         ? [{ id: part.toolCallId, toolName: part.toolName, status: stepFailed(part.status, part.output) ? 'failed' : 'done', summary: firstLine(part.output) }]
         : [])
+}
+
+function timelineFrom(parts: PersistedAgentPart[]): SubagentTimelineEntry[] {
+    const titles = new Map(parts.flatMap((part) => isSearchCall(part) ? searchResults(part.output) : []).map((link) => [link.url, link.title]))
+    return parts.flatMap((part): SubagentTimelineEntry[] => {
+        if (part.type === PersistedAgentPartType.THINKING_STATUS) {
+            const text = part.text.trim()
+            return text.length > 0 ? [{ kind: 'status', text }] : []
+        }
+        if (part.type !== PersistedAgentPartType.TOOL_CALL || !isObject(part.input)) {
+            return []
+        }
+        const query = part.input['query']
+        if (part.toolName === WEB_SEARCH_TOOL && typeof query === 'string') {
+            return [{ kind: 'search', query, results: searchResults(part.output) }]
+        }
+        const url = part.input['url']
+        if (PAGE_READ_TOOLS.includes(part.toolName) && typeof url === 'string') {
+            const title = titles.get(url)
+            return [{ kind: 'read', url, ...(isNil(title) ? {} : { title }) }]
+        }
+        return []
+    })
+}
+
+function isSearchCall(part: PersistedAgentPart): boolean {
+    return part.type === PersistedAgentPartType.TOOL_CALL && part.toolName === WEB_SEARCH_TOOL
+}
+
+function searchResults(output: unknown): SubagentLink[] {
+    const parsed = typeof output === 'string' ? parseJson(output) : output
+    if (!isObject(parsed) || !Array.isArray(parsed['results'])) {
+        return []
+    }
+    return parsed['results'].flatMap((result): SubagentLink[] => {
+        if (!isObject(result) || typeof result['url'] !== 'string' || result['url'].length === 0) {
+            return []
+        }
+        const title = typeof result['title'] === 'string' && result['title'].length > 0 ? result['title'] : undefined
+        return [{ url: result['url'], ...(isNil(title) ? {} : { title }) }]
+    })
+}
+
+function parseJson(text: string): unknown {
+    const { data } = tryCatchSync(() => JSON.parse(text))
+    return data
+}
+
+function modelView(output: unknown): string {
+    const forModel = isObject(output) ? Object.fromEntries(Object.entries(output).filter(([key]) => !CARD_ONLY_FIELDS.includes(key))) : output
+    return JSON.stringify(forModel)
 }
 
 function billedToolCalls(parts: PersistedAgentPart[]): { toolName: string, output: unknown }[] {
@@ -230,6 +336,12 @@ const STATUS_BY_RESULT: Record<TaskResult['status'], FinishAgentTaskRequest['sta
 }
 
 const TASK_TOOL_NAME = 'ap_run_task'
+const REPORT_REQUEST = `You stopped without reporting. Call ${TASK_COMPLETION_TOOL_NAME} now with your result.`
+const CONTINUE_REQUEST = 'You were cut off. Continue from where you stopped.'
+const MAX_CONTINUATIONS = 2
+const WEB_SEARCH_TOOL = 'ap_web_search'
+const PAGE_READ_TOOLS = ['ap_fetch_url', 'ap_scrape_url']
+const CARD_ONLY_FIELDS = ['activity', 'billedToolCalls']
 const SUMMARY_MAX_LENGTH = 120
 
 const NOT_FOR_TASKS = [
@@ -246,6 +358,10 @@ const NOT_FOR_TASKS = [
     'ap_deselect_project',
     'ap_remember',
     'ap_generate_image',
+    'ap_test_flow',
+    'ap_test_step',
+    'ap_lock_and_publish',
+    'ap_change_flow_status',
 ]
 
 type TaskResult = z.infer<typeof taskResult>

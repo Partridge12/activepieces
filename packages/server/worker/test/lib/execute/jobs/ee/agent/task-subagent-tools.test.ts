@@ -29,7 +29,7 @@ describe('createTaskSubagentTools', () => {
             await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Built it.', artifacts: [{ type: 'flow', id: 'f1', name: 'Save order' }] }, EXECUTION_OPTIONS)
             return turnResult()
         })
-        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow', 'ap_web_search', 'ap_execute_action', 'ap_show_questions', 'ap_show_quick_replies', 'ap_remember', 'ap_set_build_plan']) })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow', 'ap_web_search', 'ap_execute_action', 'ap_show_questions', 'ap_show_quick_replies', 'ap_remember', 'ap_set_build_plan', 'ap_test_flow', 'ap_lock_and_publish']) })
 
         const result = await tasks['ap_run_task'].execute?.({ title: 'Build Save order', brief: 'Build the Save order flow' }, EXECUTION_OPTIONS)
 
@@ -37,7 +37,7 @@ describe('createTaskSubagentTools', () => {
         expect(Object.keys(params.tools).sort()).toEqual(['ap_build_flow', 'ap_execute_action', 'ap_set_phase', 'ap_web_search', TASK_COMPLETION_TOOL_NAME].sort())
         expect(params.allToolNames).toContain(TASK_COMPLETION_TOOL_NAME)
         expect(params.systemPrompt).toBe('TASK PROMPT')
-        expect(params.phaseState).toEqual({ phase: 'discovery' })
+        expect(params.phaseState).toEqual({ phase: 'build' })
         expect(params.messages).toEqual([{ role: 'user', content: 'Build the Save order flow' }])
         expect(titleDuringRun).toBe('Build Save order')
         expect(result).toMatchObject({ taskId: 'task-1', status: 'done', summary: 'Built it.', artifacts: [{ type: 'flow', id: 'f1', name: 'Save order' }], billedToolCalls: [{ toolName: 'ap_web_search', output: {} }] })
@@ -63,14 +63,15 @@ describe('createTaskSubagentTools', () => {
     })
 
     it('switches its own phase, never the main chat\'s', async () => {
-        const mainPhase = { phase: 'discovery' }
+        const mainPhase = { phase: 'build' }
         const mainSetPhase = tool({ description: 'main', inputSchema: z.object({ phase: z.string() }), execute: async ({ phase }) => {
             mainPhase.phase = phase
             return 'ok'
         } })
         let taskPhase: string | undefined
         runAgentTurn.mockImplementation(async (params: { tools: ToolSet, phaseState: { phase: string } }) => {
-            await params.tools['ap_set_phase'].execute?.({ phase: 'build' }, EXECUTION_OPTIONS)
+            await params.tools['ap_set_phase'].execute?.({ phase: 'discovery' }, EXECUTION_OPTIONS)
+            await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Built.', artifacts: [] }, EXECUTION_OPTIONS)
             taskPhase = params.phaseState.phase
             return turnResult()
         })
@@ -78,8 +79,81 @@ describe('createTaskSubagentTools', () => {
 
         await tasks['ap_run_task'].execute?.({ title: 'Build', brief: 'Build it' }, EXECUTION_OPTIONS)
 
-        expect(taskPhase).toBe('build')
-        expect(mainPhase.phase).toBe('discovery')
+        expect(taskPhase).toBe('discovery')
+        expect(mainPhase.phase).toBe('build')
+    })
+
+    it('streams its searches and page reads in order', async () => {
+        runAgentTurn.mockImplementation(async (params: { tools: ToolSet }) => {
+            await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Found it.', artifacts: [] }, EXECUTION_OPTIONS)
+            return reportedTurn()
+        })
+        const reportedTurn = (): Record<string, unknown> => ({
+            ...turnResult(),
+            uiParts: [
+                { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 's1', toolName: 'ap_web_search', input: { query: 'blue bottle' }, status: PersistedToolCallStatus.COMPLETED, output: { results: [{ title: 'Blue Bottle plans', url: 'https://bluebottle.com/plans' }, { title: 'Reddit thread', url: 'https://reddit.com/r/coffee/1' }] } },
+                { type: PersistedAgentPartType.TOOL_CALL, toolCallId: 'f1', toolName: 'ap_fetch_url', input: { url: 'https://bluebottle.com/plans' }, status: PersistedToolCallStatus.COMPLETED, output: 'page' },
+            ],
+        })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_web_search']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research', brief: 'Find out' }, EXECUTION_OPTIONS)
+
+        expect(result).toMatchObject({ activity: { timeline: [
+            { kind: 'search', query: 'blue bottle', results: [{ url: 'https://bluebottle.com/plans', title: 'Blue Bottle plans' }, { url: 'https://reddit.com/r/coffee/1', title: 'Reddit thread' }] },
+            { kind: 'read', url: 'https://bluebottle.com/plans', title: 'Blue Bottle plans' },
+        ] } })
+    })
+
+    it('keeps the card details out of what the main model reads', async () => {
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_build_flow']) })
+
+        const view = await tasks['ap_run_task'].toModelOutput?.({ toolCallId: 'call-1', input: { title: 't', brief: 'b' }, output: { taskId: 'task-1', status: 'done', summary: 'ok', artifacts: [], activity: { steps: [] }, billedToolCalls: [] } })
+
+        expect(view).toEqual({ type: 'text', value: JSON.stringify({ taskId: 'task-1', status: 'done', summary: 'ok', artifacts: [] }) })
+    })
+
+    it('asks a task that stopped without reporting for its result, with only the report tool', async () => {
+        runAgentTurn
+            .mockResolvedValueOnce(turnResult())
+            .mockImplementationOnce(async (params: { tools: ToolSet }) => {
+                await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Asana costs $13.49 a seat.', artifacts: [] }, EXECUTION_OPTIONS)
+                return turnResult()
+            })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_web_search']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research Asana', brief: 'Find pricing' }, EXECUTION_OPTIONS)
+
+        const reportParams = runAgentTurn.mock.calls[1][0]
+        expect(Object.keys(reportParams.tools)).toEqual([TASK_COMPLETION_TOOL_NAME])
+        expect(reportParams.stepCeiling).toBe(1)
+        expect(result).toMatchObject({ status: 'done', summary: 'Asana costs $13.49 a seat.' })
+    })
+
+    it('picks up where it was cut off and finishes in the same task', async () => {
+        runAgentTurn
+            .mockResolvedValueOnce({ ...turnResult(), streamError: new Error('stream dropped') })
+            .mockImplementationOnce(async (params: { tools: ToolSet }) => {
+                await params.tools[TASK_COMPLETION_TOOL_NAME].execute?.({ status: 'done', summary: 'Done after the drop.', artifacts: [] }, EXECUTION_OPTIONS)
+                return turnResult()
+            })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_web_search']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research', brief: 'Find out' }, EXECUTION_OPTIONS)
+
+        expect(runAgentTurn).toHaveBeenCalledTimes(2)
+        expect(runAgentTurn.mock.calls[1][0].messages.at(-1)).toMatchObject({ role: 'user' })
+        expect(result).toMatchObject({ status: 'done', summary: 'Done after the drop.' })
+    })
+
+    it('stops retrying an interrupted task after its budget of continuations', async () => {
+        runAgentTurn.mockResolvedValue({ ...turnResult(), streamError: new Error('stream dropped') })
+        const tasks = createTaskSubagentTools({ ...BASE_PARAMS, tools: toolSet(['ap_web_search']) })
+
+        const result = await tasks['ap_run_task'].execute?.({ title: 'Research', brief: 'Find out' }, EXECUTION_OPTIONS)
+
+        expect(runAgentTurn).toHaveBeenCalledTimes(3)
+        expect(result).toMatchObject({ status: 'failed' })
     })
 
     it('marks a task that stopped without reporting as failed', async () => {

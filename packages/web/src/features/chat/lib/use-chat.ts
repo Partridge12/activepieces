@@ -201,7 +201,11 @@ function appendGatePart({
 }
 
 function progressOf(activity: SubagentActivity): number {
-  return activity.steps.length + (activity.statusHistory?.length ?? 0);
+  return activity.steps.length + (activity.timeline?.length ?? 0);
+}
+
+function isWideScreen(): boolean {
+  return window.matchMedia('(min-width: 1024px)').matches;
 }
 
 const ALLOWED_MIME_SET: ReadonlySet<string> = new Set(CHAT_ALLOWED_MIME_TYPES);
@@ -365,6 +369,11 @@ export function useAgentChat({
         if (isStale) {
           return prev;
         }
+        const opensPanel =
+          prev.taskPanelAutoOpen &&
+          prev.taskPanelToolCallId === null &&
+          isWideScreen() &&
+          (event.data.timeline ?? []).some((entry) => entry.kind === 'search');
         return {
           toolCallMeta: {
             ...prev.toolCallMeta,
@@ -373,6 +382,7 @@ export function useAgentChat({
               subagent: event.data,
             },
           },
+          ...(opensPanel ? { taskPanelToolCallId: event.toolCallId } : {}),
         };
       });
     },
